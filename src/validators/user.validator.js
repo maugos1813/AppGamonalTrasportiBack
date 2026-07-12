@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const AREA_VALUES = ["EXTRAS_PIAZZA", "DHL", "FARMACIA"];
+const GRUPO_VALUES = ["SOCIEDAD", "MILANO_NORD", "MILANO_SUD", "ROMA", "FARMACIA"];
 const CARGO_VALUES = ["OWNER", "ADMIN", "CHOFER"];
 const ESTADO_VALUES = ["ACTIVO", "INACTIVO"];
 
@@ -12,6 +13,7 @@ export const createUserSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio"),
   apellido: z.string().trim().min(1, "El apellido es obligatorio"),
   area: z.enum(AREA_VALUES, { errorMap: () => ({ message: "Area invalida" }) }),
+  grupo: z.enum(GRUPO_VALUES, { errorMap: () => ({ message: "Grupo invalido" }) }).optional(),
   cargo: z.enum(CARGO_VALUES, { errorMap: () => ({ message: "Cargo invalido" }) }),
   estado: z.enum(ESTADO_VALUES).optional(),
   fechaNacimiento: z.coerce.date({ errorMap: () => ({ message: "Fecha de nacimiento invalida" }) }),
@@ -25,6 +27,7 @@ export const updateUserSchema = z
     nombre: z.string().trim().min(1).optional(),
     apellido: z.string().trim().min(1).optional(),
     area: z.enum(AREA_VALUES).optional(),
+    grupo: z.enum(GRUPO_VALUES).optional(),
     cargo: z.enum(CARGO_VALUES).optional(),
     estado: z.enum(ESTADO_VALUES).optional(),
     fechaNacimiento: z.coerce.date().optional(),

@@ -13,6 +13,17 @@ enum Area {
   FARMACIA
 }
 
+// Grupo operativo/organizacional del usuario dentro de la empresa, independiente del
+// campo Area (que clasifica el tipo de registro/vehiculo). Se usa para agrupar la
+// lista de Choferes/Usuarios por sucursal o rol societario.
+enum Grupo {
+  SOCIEDAD
+  MILANO_NORD
+  MILANO_SUD
+  ROMA
+  FARMACIA
+}
+
 enum Cargo {
   OWNER
   ADMIN
@@ -44,6 +55,7 @@ model User {
   apellido             String
   imagenPerfilKey      String?
   area                 Area
+  grupo                Grupo?
   cargo                Cargo     @default(CHOFER)
   estado               Estado    @default(ACTIVO)
   fechaNacimiento      DateTime  @db.Date

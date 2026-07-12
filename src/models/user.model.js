@@ -7,6 +7,7 @@ export const SAFE_USER_SELECT = {
   apellido: true,
   imagenPerfilKey: true,
   area: true,
+  grupo: true,
   cargo: true,
   estado: true,
   fechaNacimiento: true,
