@@ -101,6 +101,7 @@ model Vehiculo {
   libretoKey       String?
   assicurazioneKey String?
   area             Area
+  grupo            Grupo?
   estado           EstadoVehiculo @default(DISPONIBLE)
   poliza           DateTime?      @db.Date
   rTecnica         DateTime?      @db.Date
