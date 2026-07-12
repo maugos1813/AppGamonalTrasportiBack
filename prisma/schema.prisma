@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Area {
+  EXTRAS_PIAZZA
+  DHL
+  FARMACIA
+}
+
+enum Cargo {
+  OWNER
+  ADMIN
+  CHOFER
+}
+
+enum Estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum TipoDocumento {
+  CARTA_IDENTITA
+  PASSAPORTO
+  SOGGIORNO
+  PATENTE
+  TRADUZIONE_PATENTE
+  CODICE_FISCALE
+  CONTRATO
+  UNILAV
+  PERMESSO_TRASPORTO
+  TREDICESIMA_QUATTORDICESIMA
+  RESPONSIVAS
+}
+
+model User {
+  id                   String    @id @default(uuid())
+  nombre               String
+  apellido             String
+  imagenPerfilKey      String?
+  area                 Area
+  cargo                Cargo     @default(CHOFER)
+  estado               Estado    @default(ACTIVO)
+  fechaNacimiento      DateTime  @db.Date
+  numeroCelular        String
+  correoElectronico    String    @unique
+  password             String
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  documentos           Documento[]
+  records              Record[]
+
+  @@map("users")
+}
+
+model Documento {
+  id            String        @id @default(uuid())
+  usuarioId     String
+  usuario       User          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipoDocumento TipoDocumento
+  archivoKey    String
+  mimeType      String
+  fechaScadenza DateTime?     @db.Date
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("documentos")
+}
+
+enum EstadoVehiculo {
+  DISPONIBLE
+  EN_MANTENIMIENTO
+  FUERA_DE_SERVICIO
+}
+
+model Vehiculo {
+  id               String         @id @default(uuid())
+  targa            String         @unique
+  modelo           String
+  imagenKey        String?
+  libretoKey       String?
+  assicurazioneKey String?
+  area             Area
+  estado           EstadoVehiculo @default(DISPONIBLE)
+  poliza           DateTime?      @db.Date
+  rTecnica         DateTime?      @db.Date
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  records          Record[]
+
+  @@map("vehiculos")
+}
+
+enum RecordStatus {
+  CONSEGNATO
+  IN_CONSEGNA
+  IN_SOSPESO
+  RITIRATO
+  ANNULLATO
+  RISCHEDULATO
+}
+
+enum TipoArchivoRecord {
+  CMR
+  FOTO_ENTREGA
+  FACTURA
+  COMPROBANTE
+  OTRO
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  nombre    String
+  createdAt DateTime @default(now())
+
+  records   Record[]
+
+  @@map("clients")
+}
+
+model Record {
+  id            String       @id @default(uuid())
+  estado        RecordStatus @default(IN_SOSPESO)
+
+  driverId      String
+  driver        User         @relation(fields: [driverId], references: [id])
+  vehicleId     String
+  vehicle       Vehiculo     @relation(fields: [vehicleId], references: [id])
+  clientId      String
+  client        Client       @relation(fields: [clientId], references: [id])
+
+  fechaServicio DateTime
+  eta           DateTime
+
+  descripcion   String
+  codigo        String       @unique
+  destinazione  String
+
+  // Operativo: visible y editable por el propio CHOFER
+  horasDia         Float?
+  horasNoche       Float?
+  tiempoEspera     Float?
+  comentarios      String?
+  kilometrosReales Float? // KM real cargado por el chofer, para comparar contra "kilometros" (planificado)
+
+  // Economico: oculto para CHOFER, solo OWNER/ADMIN lo ven/editan
+  kilometros                 Float?
+  precioKm                   Float?
+  areaC                      Float?
+  costoEspera                Float?
+  costoTraforoFrejusBrennero Float?
+  peajes                     Float?
+  vignetta                   Float?
+  costoHotel                 Float?
+  pagoRecibido               Float?
+  costoCombustible           Float?
+  clienteConfirmado          Boolean @default(false)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  files         RecordFile[]
+
+  @@index([fechaServicio])
+  @@index([driverId])
+  @@map("records")
+}
+
+model RecordFile {
+  id          String            @id @default(uuid())
+  recordId    String
+  record      Record            @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  archivoKey  String
+  tipoArchivo TipoArchivoRecord
+  createdAt   DateTime          @default(now())
+
+  @@index([recordId])
+  @@map("record_files")
+}

@@ -1,0 +1,522 @@
+{
+  "info": {
+    "name": "RegistrosGTBack",
+    "description": "Coleccion de pruebas FASE 1 (usuarios/auth/roles), FASE 2 (documentos), FASE 3 (vehiculos) y FASE 4 (clientes/registros de servicio). Importar en Thunder Client: Collections > menu (...) > Import > seleccionar este archivo. En los requests con archivo adjunto, hay que volver a seleccionar el archivo local a mano despues de importar (las rutas de archivo no viajan en la coleccion).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "token", "value": "" },
+    { "key": "ownerToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "documentId", "value": "" },
+    { "key": "vehicleId", "value": "" },
+    { "key": "clientId", "value": "" },
+    { "key": "recordId", "value": "" },
+    { "key": "fileId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Mauro\",\n  \"apellido\": \"Agostinelli\",\n  \"area\": \"DHL\",\n  \"fechaNacimiento\": \"1995-04-10\",\n  \"numeroCelular\": \"+39 333 1234567\",\n  \"correoElectronico\": \"test@example.com\",\n  \"password\": \"SuperSegura123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correoElectronico\": \"test@example.com\",\n  \"password\": \"SuperSegura123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correoElectronico\": \"test@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PEGAR_TOKEN_DEL_EMAIL\",\n  \"newPassword\": \"OtraSegura456\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/auth/reset-password"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List users (OWNER, ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/users"
+          }
+        },
+        {
+          "name": "Get user by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Create user (OWNER, ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Ana\",\n  \"apellido\": \"Gerente\",\n  \"area\": \"EXTRAS_PIAZZA\",\n  \"cargo\": \"ADMIN\",\n  \"fechaNacimiento\": \"1988-05-20\",\n  \"numeroCelular\": \"+391112223344\",\n  \"correoElectronico\": \"ana.admin@example.com\",\n  \"password\": \"AdminPass123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/users"
+          }
+        },
+        {
+          "name": "Update user (self o OWNER/ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Nuevo Nombre\",\n  \"numeroCelular\": \"+391119998888\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Delete user (OWNER, ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "Create document (self, como CHOFER)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "tipoDocumento", "value": "CARTA_IDENTITA", "type": "text" },
+                { "key": "fechaScadenza", "value": "2030-01-01", "type": "text" },
+                { "key": "archivo", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/documents"
+          }
+        },
+        {
+          "name": "Create document para otro usuario (OWNER, ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "tipoDocumento", "value": "PATENTE", "type": "text" },
+                { "key": "fechaScadenza", "value": "2028-12-31", "type": "text" },
+                { "key": "usuarioId", "value": "{{userId}}", "type": "text" },
+                { "key": "archivo", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/documents"
+          }
+        },
+        {
+          "name": "List documents",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/documents"
+          }
+        },
+        {
+          "name": "List documents de un usuario (OWNER, ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/documents?usuarioId={{userId}}"
+          }
+        },
+        {
+          "name": "Get document by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/documents/{{documentId}}"
+          }
+        },
+        {
+          "name": "Update document metadata",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "fechaScadenza", "value": "2031-06-15", "type": "text" }]
+            },
+            "url": "{{baseUrl}}/documents/{{documentId}}"
+          }
+        },
+        {
+          "name": "Update document (reemplazar archivo)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "archivo", "type": "file", "src": [] }]
+            },
+            "url": "{{baseUrl}}/documents/{{documentId}}"
+          }
+        },
+        {
+          "name": "Delete document",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/documents/{{documentId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vehiculos",
+      "item": [
+        {
+          "name": "Create vehiculo (OWNER, ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "targa", "value": "AB123CD", "type": "text" },
+                { "key": "modelo", "value": "Fiat Ducato", "type": "text" },
+                { "key": "area", "value": "DHL", "type": "text" },
+                { "key": "poliza", "value": "2027-03-01", "type": "text" },
+                { "key": "rTecnica", "value": "2026-11-15", "type": "text" }
+              ]
+            },
+            "url": "{{baseUrl}}/vehiculos"
+          }
+        },
+        {
+          "name": "List vehiculos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/vehiculos"
+          }
+        },
+        {
+          "name": "Get vehiculo by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/vehiculos/{{vehicleId}}"
+          }
+        },
+        {
+          "name": "Update vehiculo - metadata (OWNER, ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "estado", "value": "EN_MANTENIMIENTO", "type": "text" }]
+            },
+            "url": "{{baseUrl}}/vehiculos/{{vehicleId}}"
+          }
+        },
+        {
+          "name": "Update vehiculo - cargar archivos (OWNER, ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "imagen", "type": "file", "src": [] },
+                { "key": "libreto", "type": "file", "src": [] },
+                { "key": "assicurazione", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/vehiculos/{{vehicleId}}"
+          }
+        },
+        {
+          "name": "Delete vehiculo (OWNER, ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/vehiculos/{{vehicleId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "item": [
+        {
+          "name": "Create client (OWNER, ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"DHL Express\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/clients"
+          }
+        },
+        {
+          "name": "List clients",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/clients"
+          }
+        },
+        {
+          "name": "Update client (OWNER, ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"DHL Express SRL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/clients/{{clientId}}"
+          }
+        },
+        {
+          "name": "Delete client (OWNER, ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/clients/{{clientId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Records",
+      "item": [
+        {
+          "name": "Create record (OWNER, ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverId\": \"{{userId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"clientId\": \"{{clientId}}\",\n  \"fechaServicio\": \"2026-03-15T08:00:00.000Z\",\n  \"eta\": \"2026-03-15T14:00:00.000Z\",\n  \"descripcion\": \"Traslado urgente\",\n  \"codigo\": \"EP-2026-0001\",\n  \"destinazione\": \"Torino\",\n  \"kilometros\": 500,\n  \"precioKm\": 0.46,\n  \"areaC\": 20,\n  \"costoEspera\": 15,\n  \"costoTraforoFrejusBrennero\": 40,\n  \"peajes\": 25,\n  \"vignetta\": 10,\n  \"costoHotel\": 0,\n  \"costoCombustible\": 80\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/records"
+          }
+        },
+        {
+          "name": "List records",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/records"
+          }
+        },
+        {
+          "name": "List records por año",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/records/2026"
+          }
+        },
+        {
+          "name": "List records por año+mes",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/records/2026/3"
+          }
+        },
+        {
+          "name": "List records por año+mes+dia",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/records/2026/3/15"
+          }
+        },
+        {
+          "name": "Get record by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/records/{{recordId}}"
+          }
+        },
+        {
+          "name": "Update record - completo (OWNER, ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{ownerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"CONSEGNATO\",\n  \"clienteConfirmado\": true,\n  \"pagoRecibido\": 340\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/records/{{recordId}}"
+          }
+        },
+        {
+          "name": "Update record - CHOFER (campos limitados)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horasDia\": 6.5,\n  \"horasNoche\": 1,\n  \"tiempoEspera\": 2,\n  \"estado\": \"IN_CONSEGNA\",\n  \"comentarios\": \"Todo en orden\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/records/{{recordId}}"
+          }
+        },
+        {
+          "name": "Delete record (OWNER, ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/records/{{recordId}}"
+          }
+        },
+        {
+          "name": "Upload file - FOTO_ENTREGA (dueño CHOFER)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "tipoArchivo", "value": "FOTO_ENTREGA", "type": "text" },
+                { "key": "archivo", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/records/{{recordId}}/files"
+          }
+        },
+        {
+          "name": "Upload file - cualquier tipo (OWNER, ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "tipoArchivo", "value": "FACTURA", "type": "text" },
+                { "key": "archivo", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/records/{{recordId}}/files"
+          }
+        },
+        {
+          "name": "List files del record",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/records/{{recordId}}/files"
+          }
+        },
+        {
+          "name": "Delete file (OWNER, ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{ownerToken}}" }],
+            "url": "{{baseUrl}}/files/{{fileId}}"
+          }
+        }
+      ]
+    }
+  ]
+}
