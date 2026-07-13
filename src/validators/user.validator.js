@@ -34,6 +34,7 @@ export const updateUserSchema = z
     numeroCelular: z.string().trim().min(6).optional(),
     correoElectronico: z.string().trim().email().optional(),
     password: passwordSchema.optional(),
+    compartirUbicacion: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Debe enviar al menos un campo para actualizar",

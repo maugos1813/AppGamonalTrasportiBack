@@ -13,6 +13,7 @@ export const SAFE_USER_SELECT = {
   fechaNacimiento: true,
   numeroCelular: true,
   correoElectronico: true,
+  compartirUbicacion: true,
   createdAt: true,
   updatedAt: true,
 };

@@ -67,6 +67,7 @@ model User {
   ubicacionLat         Float?
   ubicacionLng         Float?
   ubicacionActualizada DateTime?
+  compartirUbicacion   Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

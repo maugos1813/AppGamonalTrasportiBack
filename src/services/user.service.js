@@ -24,7 +24,13 @@ const assertCanAssignCargo = (actor, cargo) => {
 
 // Campos que un CHOFER puede modificar sobre si mismo; cargo/area/estado quedan fuera
 // para que no pueda autoasignarse privilegios ni reactivarse si fue desactivado.
-const SELF_EDITABLE_FIELDS = ["nombre", "apellido", "numeroCelular", "password"];
+const SELF_EDITABLE_FIELDS = [
+  "nombre",
+  "apellido",
+  "numeroCelular",
+  "password",
+  "compartirUbicacion",
+];
 
 // El bucket es privado: nunca se expone la key interna, siempre una URL firmada fresca.
 export const toUserResponse = async (user) => {
