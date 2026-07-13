@@ -2,7 +2,9 @@ import {
   createUser,
   deleteUser,
   getUserById,
+  listActiveDriverLocations,
   listUsers,
+  updateMyLocation,
   updateUser,
   uploadUserAvatar,
 } from "../services/user.service.js";
@@ -40,4 +42,14 @@ export const uploadAvatar = asyncHandler(async (req, res) => {
   }
   const user = await uploadUserAvatar(req.params.id, req.file);
   res.status(200).json({ success: true, data: { user } });
+});
+
+export const updateMyLocationHandler = asyncHandler(async (req, res) => {
+  await updateMyLocation(req.user.id, req.body);
+  res.status(200).json({ success: true });
+});
+
+export const listLocations = asyncHandler(async (req, res) => {
+  const ubicaciones = await listActiveDriverLocations();
+  res.status(200).json({ success: true, data: { ubicaciones } });
 });

@@ -58,6 +58,31 @@ export const updateUserById = (id, data) => {
 
 export const deleteUserById = (id) => prisma.user.delete({ where: { id } });
 
+export const updateUserLocation = (id, lat, lng) =>
+  prisma.user.update({
+    where: { id },
+    data: { ubicacionLat: lat, ubicacionLng: lng, ubicacionActualizada: new Date() },
+    select: { id: true },
+  });
+
+// Choferes activos con una ubicacion reciente (dentro de la ventana "fresca").
+export const findUsersWithFreshLocation = (sinceDate) =>
+  prisma.user.findMany({
+    where: {
+      cargo: "CHOFER",
+      estado: "ACTIVO",
+      ubicacionActualizada: { gte: sinceDate },
+    },
+    select: {
+      id: true,
+      nombre: true,
+      apellido: true,
+      ubicacionLat: true,
+      ubicacionLng: true,
+      ubicacionActualizada: true,
+    },
+  });
+
 export const setResetToken = (id, hashedToken, expiresAt) =>
   prisma.user.update({
     where: { id },

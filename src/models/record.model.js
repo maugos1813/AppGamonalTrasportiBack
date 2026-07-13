@@ -26,4 +26,12 @@ export const findRecords = ({ driverId, dateRange } = {}) =>
 export const updateRecordById = (id, data) =>
   prisma.record.update({ where: { id }, data, include: RECORD_INCLUDE });
 
+// Usado por el mapa de ubicaciones: solo se muestra un chofer si tiene un
+// servicio en camino ahora mismo.
+export const findActiveRecordsByDriverIds = (driverIds) =>
+  prisma.record.findMany({
+    where: { estado: "IN_CONSEGNA", driverId: { in: driverIds } },
+    select: { driverId: true, codigo: true, destinazione: true },
+  });
+
 export const deleteRecordById = (id) => prisma.record.delete({ where: { id } });

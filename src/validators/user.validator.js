@@ -42,3 +42,8 @@ export const updateUserSchema = z
 export const idParamSchema = z.object({
   id: z.string().uuid("Id invalido"),
 });
+
+export const updateLocationSchema = z.object({
+  lat: z.coerce.number().min(-90, "Latitud invalida").max(90, "Latitud invalida"),
+  lng: z.coerce.number().min(-180, "Longitud invalida").max(180, "Longitud invalida"),
+});
