@@ -71,8 +71,8 @@ model User {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  documentos           Documento[]
-  records              Record[]
+  documentos Documento[]
+  records    Record[]
 
   @@map("users")
 }
@@ -112,7 +112,7 @@ model Vehiculo {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  records          Record[]
+  records Record[]
 
   @@map("vehiculos")
 }
@@ -124,6 +124,30 @@ enum RecordStatus {
   RITIRATO
   ANNULLATO
   RISCHEDULATO
+}
+
+// Circuito/aplicativo de reparto asignado al servicio (MILANO 1 a MILANO 18).
+// Se carga por servicio, no por chofer, para conservar el historial exacto aunque
+// el chofer cambie de aplicativo con el tiempo.
+enum Aplicativo {
+  MILANO_1
+  MILANO_2
+  MILANO_3
+  MILANO_4
+  MILANO_5
+  MILANO_6
+  MILANO_7
+  MILANO_8
+  MILANO_9
+  MILANO_10
+  MILANO_11
+  MILANO_12
+  MILANO_13
+  MILANO_14
+  MILANO_15
+  MILANO_16
+  MILANO_17
+  MILANO_18
 }
 
 enum TipoArchivoRecord {
@@ -139,28 +163,37 @@ model Client {
   nombre    String
   createdAt DateTime @default(now())
 
-  records   Record[]
+  records Record[]
 
   @@map("clients")
 }
 
 model Record {
-  id            String       @id @default(uuid())
-  estado        RecordStatus @default(IN_SOSPESO)
+  id     String       @id @default(uuid())
+  estado RecordStatus @default(IN_SOSPESO)
 
-  driverId      String
-  driver        User         @relation(fields: [driverId], references: [id])
-  vehicleId     String
-  vehicle       Vehiculo     @relation(fields: [vehicleId], references: [id])
-  clientId      String
-  client        Client       @relation(fields: [clientId], references: [id])
+  driverId  String
+  driver    User     @relation(fields: [driverId], references: [id])
+  vehicleId String
+  vehicle   Vehiculo @relation(fields: [vehicleId], references: [id])
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id])
 
   fechaServicio DateTime
   eta           DateTime
 
-  descripcion   String
-  codigo        String       @unique
-  destinazione  String
+  descripcion  String
+  codigo       String      @unique
+  destinazione String
+  aplicativo   Aplicativo?
+
+  // Ruta calculada (deposito fijo -> paradas en orden), cacheada para no recalcular
+  // en cada lectura. Null si todavia no se calculo o si el servicio de ruteo fallo.
+  stops           RecordStop[]
+  rutaDistanciaKm Float?
+  rutaDuracionMin Float?
+  rutaGeometria   Json?
+  rutaCalculadaAt DateTime?
 
   // Operativo: visible y editable por el propio CHOFER
   horasDia         Float?
@@ -182,14 +215,46 @@ model Record {
   costoCombustible           Float?
   clienteConfirmado          Boolean @default(false)
 
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  files         RecordFile[]
+  files RecordFile[]
 
   @@index([fechaServicio])
   @@index([driverId])
   @@map("records")
+}
+
+model RecordStop {
+  id         String    @id @default(uuid())
+  recordId   String
+  record     Record    @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  orden      Int
+  direccion  String
+  lat        Float?
+  lng        Float?
+  geocodedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([recordId, orden])
+  @@index([recordId])
+  @@map("record_stops")
+}
+
+// Cache de geocodificacion (Nominatim) por direccion normalizada, compartido entre
+// records para no re-geocodificar direcciones repetidas (deposito, almacenes, clientes).
+model GeocodeCache {
+  id        String   @id @default(uuid())
+  queryKey  String   @unique
+  direccion String
+  lat       Float
+  lng       Float
+  raw       Json?
+  createdAt DateTime @default(now())
+
+  @@map("geocode_cache")
 }
 
 model RecordFile {

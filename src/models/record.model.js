@@ -4,6 +4,7 @@ const RECORD_INCLUDE = {
   driver: { select: { id: true, nombre: true, apellido: true } },
   vehicle: { select: { id: true, targa: true, modelo: true } },
   client: { select: { id: true, nombre: true } },
+  stops: { orderBy: { orden: "asc" } },
 };
 
 export const createRecord = (data) =>
@@ -27,11 +28,21 @@ export const updateRecordById = (id, data) =>
   prisma.record.update({ where: { id }, data, include: RECORD_INCLUDE });
 
 // Usado por el mapa de ubicaciones: solo se muestra un chofer si tiene un
-// servicio en camino ahora mismo.
+// servicio en camino ahora mismo. "ultimaParada" (la parada final) se usa para
+// calcular la ruta en vivo desde la posicion actual del chofer.
 export const findActiveRecordsByDriverIds = (driverIds) =>
   prisma.record.findMany({
     where: { estado: "IN_CONSEGNA", driverId: { in: driverIds } },
-    select: { driverId: true, codigo: true, destinazione: true },
+    select: {
+      driverId: true,
+      codigo: true,
+      destinazione: true,
+      stops: {
+        orderBy: { orden: "desc" },
+        take: 1,
+        select: { lat: true, lng: true },
+      },
+    },
   });
 
 export const deleteRecordById = (id) => prisma.record.delete({ where: { id } });

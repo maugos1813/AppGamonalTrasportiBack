@@ -9,6 +9,8 @@ const RECORD_STATUS_VALUES = [
   "RISCHEDULATO",
 ];
 
+const APLICATIVO_VALUES = Array.from({ length: 18 }, (_, i) => `MILANO_${i + 1}`);
+
 const economicFields = {
   kilometros: z.coerce.number().optional(),
   precioKm: z.coerce.number().optional(),
@@ -34,6 +36,13 @@ const operationalFields = {
   kilometrosReales: z.coerce.number().optional(),
 };
 
+// Paradas del servicio, en orden. El deposito de partida es fijo (no se envia desde el
+// cliente) y "destinazione" se deriva en el backend a partir de la ultima parada.
+const stopsField = z
+  .array(z.string().trim().min(1, "La direccion de la parada no puede estar vacia"))
+  .min(1, "Debe haber al menos una parada")
+  .max(10, "Maximo 10 paradas");
+
 export const createRecordSchema = z.object({
   driverId: z.string().uuid("driverId invalido"),
   vehicleId: z.string().uuid("vehicleId invalido"),
@@ -42,7 +51,8 @@ export const createRecordSchema = z.object({
   eta: z.coerce.date({ errorMap: () => ({ message: "eta invalida" }) }),
   descripcion: z.string().trim().min(1, "La descripcion es obligatoria"),
   codigo: z.string().trim().min(1, "El codigo es obligatorio"),
-  destinazione: z.string().trim().min(1, "La destinazione es obligatoria"),
+  aplicativo: z.enum(APLICATIVO_VALUES, { errorMap: () => ({ message: "Aplicativo invalido" }) }).optional(),
+  stops: stopsField,
   ...operationalFields,
   ...economicFields,
 });
@@ -55,7 +65,8 @@ export const updateRecordSchema = z.object({
   eta: z.coerce.date().optional(),
   descripcion: z.string().trim().min(1).optional(),
   codigo: z.string().trim().min(1).optional(),
-  destinazione: z.string().trim().min(1).optional(),
+  aplicativo: z.enum(APLICATIVO_VALUES).optional(),
+  stops: stopsField.optional(),
   ...operationalFields,
   ...economicFields,
 });

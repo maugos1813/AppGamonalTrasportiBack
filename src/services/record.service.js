@@ -7,6 +7,9 @@ import {
 } from "../models/record.model.js";
 import { findUserById } from "../models/user.model.js";
 import { purgeFilesForRecord } from "./recordFile.service.js";
+import { geocodeStops } from "./geocoding.service.js";
+import { calculateRoute } from "./routing.service.js";
+import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { AppError } from "../utils/AppError.js";
 
 const isPrivileged = (actor) => actor.cargo === "OWNER" || actor.cargo === "ADMIN";
@@ -33,6 +36,34 @@ const SELF_EDITABLE_FIELDS = [
   "comentarios",
   "kilometrosReales",
 ];
+
+// Geocodifica las paradas (en orden) y calcula la ruta deposito -> paradas. Devuelve
+// el payload listo para mezclar en la data que se manda a Prisma.
+const buildStopsPipeline = async (direcciones) => {
+  const stopsGeocoded = await geocodeStops(direcciones);
+  const ruta = await calculateRoute([DEPOT_ORIGIN, ...stopsGeocoded]);
+
+  return {
+    stopsCreate: stopsGeocoded.map((s, i) => ({
+      orden: i,
+      direccion: s.direccion,
+      lat: s.lat,
+      lng: s.lng,
+      geocodedAt: new Date(),
+    })),
+    destinazione: stopsGeocoded[stopsGeocoded.length - 1].direccion,
+    rutaDistanciaKm: ruta?.distanciaKm ?? null,
+    rutaDuracionMin: ruta?.duracionMin ?? null,
+    rutaGeometria: ruta?.geometria ?? null,
+    rutaCalculadaAt: ruta ? new Date() : null,
+  };
+};
+
+const stopsUnchanged = (existingStops, direcciones) =>
+  existingStops.length === direcciones.length &&
+  existingStops.every(
+    (stop, i) => stop.direccion.trim().toLowerCase() === direcciones[i].trim().toLowerCase()
+  );
 
 const computeTotals = (record) => {
   const kilometros = record.kilometros ?? 0;
@@ -72,6 +103,14 @@ const toFullResponse = (record) => {
     descripcion: record.descripcion,
     codigo: record.codigo,
     destinazione: record.destinazione,
+    aplicativo: record.aplicativo,
+    origen: DEPOT_ORIGIN,
+    stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
+    ruta: {
+      distanciaKm: record.rutaDistanciaKm,
+      duracionMin: record.rutaDuracionMin,
+      geometria: record.rutaGeometria,
+    },
     horasDia: record.horasDia,
     horasNoche: record.horasNoche,
     tiempoEspera: record.tiempoEspera,
@@ -109,6 +148,14 @@ const toChoferResponse = (record) => ({
   descripcion: record.descripcion,
   codigo: record.codigo,
   destinazione: record.destinazione,
+  aplicativo: record.aplicativo,
+  origen: DEPOT_ORIGIN,
+  stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
+  ruta: {
+    distanciaKm: record.rutaDistanciaKm,
+    duracionMin: record.rutaDuracionMin,
+    geometria: record.rutaGeometria,
+  },
   horasDia: record.horasDia,
   horasNoche: record.horasNoche,
   tiempoEspera: record.tiempoEspera,
@@ -124,8 +171,18 @@ const toResponse = (record, actor) => (isPrivileged(actor) ? toFullResponse(reco
 export const createRecord = async (data) => {
   await assertDriverActivo(data.driverId);
 
+  const { stops: direcciones, ...rest } = data;
+  const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
+    await buildStopsPipeline(direcciones);
+
   const record = await createRecordModel({
-    ...data,
+    ...rest,
+    destinazione,
+    rutaDistanciaKm,
+    rutaDuracionMin,
+    rutaGeometria,
+    rutaCalculadaAt,
+    stops: { create: stopsCreate },
     estado: data.estado ?? "IN_SOSPESO",
     clienteConfirmado: data.clienteConfirmado ?? false,
   });
@@ -160,6 +217,25 @@ export const updateRecordForActor = async (actor, id, data) => {
   if (isPrivileged(actor)) {
     if (payload.driverId) {
       await assertDriverActivo(payload.driverId);
+    }
+
+    if (payload.stops) {
+      const { stops: direcciones, ...rest } = payload;
+      if (stopsUnchanged(record.stops, direcciones)) {
+        payload = rest;
+      } else {
+        const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
+          await buildStopsPipeline(direcciones);
+        payload = {
+          ...rest,
+          destinazione,
+          rutaDistanciaKm,
+          rutaDuracionMin,
+          rutaGeometria,
+          rutaCalculadaAt,
+          stops: { deleteMany: {}, create: stopsCreate },
+        };
+      }
     }
   } else {
     payload = Object.fromEntries(

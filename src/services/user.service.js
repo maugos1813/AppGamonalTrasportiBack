@@ -9,6 +9,7 @@ import {
   updateUserLocation,
 } from "../models/user.model.js";
 import { findActiveRecordsByDriverIds } from "../models/record.model.js";
+import { calculateRoute } from "./routing.service.js";
 import { purgeDocumentsForUser } from "./document.service.js";
 import { deleteObject, getSignedUrlForKey, uploadObject } from "./storage.service.js";
 import { compressAvatar } from "../utils/imageProcessor.js";
@@ -118,6 +119,22 @@ const LOCATION_FRESH_MINUTES = 5;
 
 export const updateMyLocation = (actorId, { lat, lng }) => updateUserLocation(actorId, lat, lng);
 
+// Ruta en vivo desde la posicion GPS actual del chofer hasta la parada final del
+// servicio (no desde el deposito). Best-effort, igual que calculateRoute: si falla
+// o no hay parada geocodificada, se devuelve null y el mapa muestra "no disponible".
+const calculateLiveEta = async (user, record) => {
+  const finalStop = record.stops?.[0];
+  if (finalStop?.lat == null || finalStop?.lng == null) return null;
+
+  const ruta = await calculateRoute([
+    { lat: user.ubicacionLat, lng: user.ubicacionLng },
+    { lat: finalStop.lat, lng: finalStop.lng },
+  ]);
+  if (!ruta) return null;
+
+  return { distanciaKm: ruta.distanciaKm, duracionMin: ruta.duracionMin, geometria: ruta.geometria };
+};
+
 // Solo se exponen choferes con ubicacion reciente Y un servicio en camino ahora mismo
 // (no se rastrea fuera de un viaje activo).
 export const listActiveDriverLocations = async () => {
@@ -127,18 +144,24 @@ export const listActiveDriverLocations = async () => {
 
   const activeRecords = await findActiveRecordsByDriverIds(users.map((u) => u.id));
   const recordByDriverId = Object.fromEntries(activeRecords.map((r) => [r.driverId, r]));
+  const activeUsers = users.filter((u) => recordByDriverId[u.id]);
 
-  return users
-    .filter((u) => recordByDriverId[u.id])
-    .map((u) => ({
-      id: u.id,
-      nombre: u.nombre,
-      apellido: u.apellido,
-      lat: u.ubicacionLat,
-      lng: u.ubicacionLng,
-      actualizada: u.ubicacionActualizada,
-      servicio: recordByDriverId[u.id],
-    }));
+  return Promise.all(
+    activeUsers.map(async (u) => {
+      const record = recordByDriverId[u.id];
+      const { stops, ...servicio } = record;
+      return {
+        id: u.id,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        lat: u.ubicacionLat,
+        lng: u.ubicacionLng,
+        actualizada: u.ubicacionActualizada,
+        servicio,
+        etaEnVivo: await calculateLiveEta(u, record),
+      };
+    })
+  );
 };
 
 export const deleteUser = async (actor, targetId) => {

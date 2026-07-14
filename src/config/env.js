@@ -22,6 +22,10 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(1, "R2_SECRET_ACCESS_KEY es obligatorio"),
   R2_BUCKET_NAME: z.string().min(1, "R2_BUCKET_NAME es obligatorio"),
   R2_SIGNED_URL_EXPIRES_SECONDS: z.coerce.number().default(900),
+
+  NOMINATIM_BASE_URL: z.string().url().default("https://nominatim.openstreetmap.org"),
+  NOMINATIM_USER_AGENT: z.string().min(1).default("GamonalTrasporti/1.0 (maufabagosgam@gmail.com)"),
+  OSRM_BASE_URL: z.string().url().default("https://router.project-osrm.org"),
 });
 
 const parsed = envSchema.safeParse(process.env);
