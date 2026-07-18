@@ -11,6 +11,7 @@ const RECORD_STATUS_VALUES = [
 
 const APLICATIVO_VALUES = Array.from({ length: 18 }, (_, i) => `MILANO_${i + 1}`);
 const SPEDIZZIONE_VALUES = ["DHL", "AB_SERVICE", "EXTRA_PIAZZA"];
+const EXTRAS_PIAZZA_ZONA_VALUES = ["MILANO", "ROMA"];
 
 const economicFields = {
   kilometros: z.coerce.number().optional(),
@@ -55,6 +56,9 @@ export const createRecordSchema = z.object({
   ciudad: z.string().trim().optional(),
   aplicativo: z.enum(APLICATIVO_VALUES, { errorMap: () => ({ message: "Aplicativo invalido" }) }).optional(),
   spedizzione: z.enum(SPEDIZZIONE_VALUES, { errorMap: () => ({ message: "Spedizzione invalida" }) }).optional(),
+  extrasPiazzaZona: z
+    .enum(EXTRAS_PIAZZA_ZONA_VALUES, { errorMap: () => ({ message: "Zona invalida" }) })
+    .optional(),
   origenExternoId: z.string().trim().min(1).optional(),
   stops: stopsField,
   ...operationalFields,
@@ -72,6 +76,7 @@ export const updateRecordSchema = z.object({
   ciudad: z.string().trim().optional(),
   aplicativo: z.enum(APLICATIVO_VALUES).optional(),
   spedizzione: z.enum(SPEDIZZIONE_VALUES).optional(),
+  extrasPiazzaZona: z.enum(EXTRAS_PIAZZA_ZONA_VALUES).optional(),
   stops: stopsField.optional(),
   ...operationalFields,
   ...economicFields,

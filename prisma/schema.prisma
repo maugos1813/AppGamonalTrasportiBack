@@ -158,6 +158,13 @@ enum Spedizzione {
   EXTRA_PIAZZA
 }
 
+// Sub-clasificacion de los servicios Extra Piazza (Milano vs Roma), para poder
+// filtrar/reportar por zona mas adelante. No aplica a DHL/AB_SERVICE.
+enum ExtrasPiazzaZona {
+  MILANO
+  ROMA
+}
+
 enum TipoArchivoRecord {
   CMR
   FOTO_ENTREGA
@@ -196,6 +203,7 @@ model Record {
   ciudad       String?
   aplicativo   Aplicativo?
   spedizzione  Spedizzione?
+  extrasPiazzaZona ExtrasPiazzaZona?
 
   // Clave del sistema origen (ej. fila de una hoja de calculo sincronizada), para
   // poder re-sincronizar sin crear duplicados. Null en servicios cargados a mano.

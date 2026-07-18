@@ -107,6 +107,7 @@ const toFullResponse = (record) => {
     ciudad: record.ciudad,
     aplicativo: record.aplicativo,
     spedizzione: record.spedizzione,
+    extrasPiazzaZona: record.extrasPiazzaZona,
     origen: DEPOT_ORIGIN,
     stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
     ruta: {
@@ -154,6 +155,7 @@ const toChoferResponse = (record) => ({
   ciudad: record.ciudad,
   aplicativo: record.aplicativo,
   spedizzione: record.spedizzione,
+  extrasPiazzaZona: record.extrasPiazzaZona,
   origen: DEPOT_ORIGIN,
   stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
   ruta: {
