@@ -23,8 +23,9 @@ const envSchema = z.object({
   R2_BUCKET_NAME: z.string().min(1, "R2_BUCKET_NAME es obligatorio"),
   R2_SIGNED_URL_EXPIRES_SECONDS: z.coerce.number().default(900),
 
-  NOMINATIM_BASE_URL: z.string().url().default("https://nominatim.openstreetmap.org"),
-  NOMINATIM_USER_AGENT: z.string().min(1).default("GamonalTrasporti/1.0 (maufabagosgam@gmail.com)"),
+  // Reemplaza a Nominatim (bloqueaba/limitaba por IP compartida en Render). Se pide
+  // en Google Cloud Console > APIs & Services, habilitando "Geocoding API".
+  GOOGLE_MAPS_API_KEY: z.string().min(1, "GOOGLE_MAPS_API_KEY es obligatorio"),
   OSRM_BASE_URL: z.string().url().default("https://router.project-osrm.org"),
 });
 
