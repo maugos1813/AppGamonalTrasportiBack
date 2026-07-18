@@ -3,6 +3,7 @@ import {
   deleteRecordById,
   findRecordById,
   findRecords,
+  findRecordsSummary,
   updateRecordById,
 } from "../models/record.model.js";
 import { findUserById } from "../models/user.model.js";
@@ -103,7 +104,9 @@ const toFullResponse = (record) => {
     descripcion: record.descripcion,
     codigo: record.codigo,
     destinazione: record.destinazione,
+    ciudad: record.ciudad,
     aplicativo: record.aplicativo,
+    spedizzione: record.spedizzione,
     origen: DEPOT_ORIGIN,
     stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
     ruta: {
@@ -148,7 +151,9 @@ const toChoferResponse = (record) => ({
   descripcion: record.descripcion,
   codigo: record.codigo,
   destinazione: record.destinazione,
+  ciudad: record.ciudad,
   aplicativo: record.aplicativo,
+  spedizzione: record.spedizzione,
   origen: DEPOT_ORIGIN,
   stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
   ruta: {
@@ -194,6 +199,14 @@ export const listRecordsForActor = async (actor, dateRange) => {
   const driverId = isPrivileged(actor) ? undefined : actor.id;
   const records = await findRecords({ driverId, dateRange });
   return records.map((record) => toResponse(record, actor));
+};
+
+// Version liviana (id/fechaServicio/estado) para armar el acordeon de dias del
+// mes sin traer stops/ruta/economico de cada registro. No hay datos sensibles
+// aca, asi que no hace falta distinguir toFullResponse/toChoferResponse.
+export const listRecordsSummaryForActor = async (actor, dateRange) => {
+  const driverId = isPrivileged(actor) ? undefined : actor.id;
+  return findRecordsSummary({ driverId, dateRange });
 };
 
 export const getRecordByIdForActor = async (actor, id) => {

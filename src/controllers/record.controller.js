@@ -3,6 +3,7 @@ import {
   deleteRecord,
   getRecordByIdForActor,
   listRecordsForActor,
+  listRecordsSummaryForActor,
   updateRecordForActor,
 } from "../services/record.service.js";
 import { buildDateRange } from "../utils/dateRange.js";
@@ -33,6 +34,14 @@ export const listByMonth = asyncHandler(async (req, res) => {
 export const listByDay = asyncHandler(async (req, res) => {
   const dateRange = buildDateRange(req.params.year, req.params.month, req.params.day);
   const records = await listRecordsForActor(req.user, dateRange);
+  res.status(200).json({ success: true, data: { records } });
+});
+
+// Version liviana de listByMonth: solo id/fechaServicio/estado, para armar el
+// acordeon de dias sin traer stops/ruta/economico de cada registro del mes.
+export const listSummaryByMonth = asyncHandler(async (req, res) => {
+  const dateRange = buildDateRange(req.params.year, req.params.month);
+  const records = await listRecordsSummaryForActor(req.user, dateRange);
   res.status(200).json({ success: true, data: { records } });
 });
 

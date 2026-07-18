@@ -150,6 +150,14 @@ enum Aplicativo {
   MILANO_18
 }
 
+// Categoria de despacho del servicio (de donde viene el pedido), independiente del
+// aplicativo. Se usa tambien para sincronizar contra la hoja de calculo historica.
+enum Spedizzione {
+  DHL
+  AB_SERVICE
+  EXTRA_PIAZZA
+}
+
 enum TipoArchivoRecord {
   CMR
   FOTO_ENTREGA
@@ -183,9 +191,15 @@ model Record {
   eta           DateTime
 
   descripcion  String
-  codigo       String      @unique
+  codigo       String       @unique
   destinazione String
+  ciudad       String?
   aplicativo   Aplicativo?
+  spedizzione  Spedizzione?
+
+  // Clave del sistema origen (ej. fila de una hoja de calculo sincronizada), para
+  // poder re-sincronizar sin crear duplicados. Null en servicios cargados a mano.
+  origenExternoId String? @unique
 
   // Ruta calculada (deposito fijo -> paradas en orden), cacheada para no recalcular
   // en cada lectura. Null si todavia no se calculo o si el servicio de ruteo fallo.

@@ -10,6 +10,7 @@ const RECORD_STATUS_VALUES = [
 ];
 
 const APLICATIVO_VALUES = Array.from({ length: 18 }, (_, i) => `MILANO_${i + 1}`);
+const SPEDIZZIONE_VALUES = ["DHL", "AB_SERVICE", "EXTRA_PIAZZA"];
 
 const economicFields = {
   kilometros: z.coerce.number().optional(),
@@ -51,7 +52,10 @@ export const createRecordSchema = z.object({
   eta: z.coerce.date({ errorMap: () => ({ message: "eta invalida" }) }),
   descripcion: z.string().trim().min(1, "La descripcion es obligatoria"),
   codigo: z.string().trim().min(1, "El codigo es obligatorio"),
+  ciudad: z.string().trim().optional(),
   aplicativo: z.enum(APLICATIVO_VALUES, { errorMap: () => ({ message: "Aplicativo invalido" }) }).optional(),
+  spedizzione: z.enum(SPEDIZZIONE_VALUES, { errorMap: () => ({ message: "Spedizzione invalida" }) }).optional(),
+  origenExternoId: z.string().trim().min(1).optional(),
   stops: stopsField,
   ...operationalFields,
   ...economicFields,
@@ -65,7 +69,9 @@ export const updateRecordSchema = z.object({
   eta: z.coerce.date().optional(),
   descripcion: z.string().trim().min(1).optional(),
   codigo: z.string().trim().min(1).optional(),
+  ciudad: z.string().trim().optional(),
   aplicativo: z.enum(APLICATIVO_VALUES).optional(),
+  spedizzione: z.enum(SPEDIZZIONE_VALUES).optional(),
   stops: stopsField.optional(),
   ...operationalFields,
   ...economicFields,

@@ -24,6 +24,20 @@ export const findRecords = ({ driverId, dateRange } = {}) =>
     orderBy: { fechaServicio: "desc" },
   });
 
+// Version liviana de findRecords: solo lo necesario para armar un acordeon de dias
+// (conteos), sin stops/ruta/economico. El agrupado por dia calendario se hace en el
+// frontend (misma logica que ya usa para la vista completa), asi no hay riesgo de
+// que el "dia" del backend no coincida con el "dia" que ve el usuario en su huso horario.
+export const findRecordsSummary = ({ driverId, dateRange } = {}) =>
+  prisma.record.findMany({
+    where: {
+      ...(driverId ? { driverId } : {}),
+      ...(dateRange ? { fechaServicio: { gte: dateRange.gte, lt: dateRange.lt } } : {}),
+    },
+    select: { id: true, fechaServicio: true, estado: true, spedizzione: true },
+    orderBy: { fechaServicio: "desc" },
+  });
+
 export const updateRecordById = (id, data) =>
   prisma.record.update({ where: { id }, data, include: RECORD_INCLUDE });
 

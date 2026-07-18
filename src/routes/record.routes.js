@@ -5,6 +5,7 @@ import {
   list,
   listByDay,
   listByMonth,
+  listSummaryByMonth,
   listByYear,
   remove,
   update,
@@ -35,6 +36,13 @@ router.get(
   "/:year(\\d{4})/:month(\\d{1,2})/:day(\\d{1,2})",
   validate(yearMonthDayParamSchema, "params"),
   listByDay
+);
+// Resumen liviano (solo id/fechaServicio/estado) para armar el acordeon de dias sin
+// traer stops/ruta/economico de cada registro. "summary" no matchea el regex de :day.
+router.get(
+  "/:year(\\d{4})/:month(\\d{1,2})/summary",
+  validate(yearMonthParamSchema, "params"),
+  listSummaryByMonth
 );
 router.get("/:year(\\d{4})/:month(\\d{1,2})", validate(yearMonthParamSchema, "params"), listByMonth);
 router.get("/:year(\\d{4})", validate(yearParamSchema, "params"), listByYear);
