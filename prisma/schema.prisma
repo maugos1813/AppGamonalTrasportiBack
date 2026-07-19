@@ -79,6 +79,7 @@ model User {
 
   documentos Documento[]
   records    Record[]
+  mantenimientosRegistrados MantenimientoVehiculo[]
 
   @@map("users")
 }
@@ -115,12 +116,33 @@ model Vehiculo {
   estado           EstadoVehiculo @default(DISPONIBLE)
   poliza           DateTime?      @db.Date
   rTecnica         DateTime?      @db.Date
+  // Kilometraje para el seguimiento de Tagliando (seccion Mecanica): kmActual - kmUltimoMantenimiento
+  // se compara contra el intervalo fijo de 20000km para avisar cuando se acerca o vence el service.
+  kmUltimoMantenimiento Float?
+  kmActual              Float?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  records Record[]
+  records        Record[]
+  mantenimientos MantenimientoVehiculo[]
 
   @@map("vehiculos")
+}
+
+// Historial de cada carga de KM en la seccion Mecanica: conserva el registro completo
+// aunque los campos "actuales" del Vehiculo se sobreescriban con la lectura siguiente.
+model MantenimientoVehiculo {
+  id                    String   @id @default(uuid())
+  vehiculoId            String
+  vehiculo              Vehiculo @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
+  kmUltimoMantenimiento Float
+  kmActual              Float
+  usuarioId             String
+  usuario               User     @relation(fields: [usuarioId], references: [id])
+  createdAt             DateTime @default(now())
+
+  @@index([vehiculoId])
+  @@map("mantenimientos_vehiculo")
 }
 
 enum RecordStatus {

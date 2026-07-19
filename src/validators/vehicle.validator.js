@@ -18,6 +18,8 @@ export const createVehicleSchema = z.object({
   estado: z.enum(ESTADO_VEHICULO_VALUES).optional(),
   poliza: z.coerce.date().optional(),
   rTecnica: z.coerce.date().optional(),
+  kmUltimoMantenimiento: z.coerce.number().nonnegative().optional(),
+  kmActual: z.coerce.number().nonnegative().optional(),
 });
 
 export const updateVehicleSchema = z.object({
@@ -28,8 +30,24 @@ export const updateVehicleSchema = z.object({
   estado: z.enum(ESTADO_VEHICULO_VALUES).optional(),
   poliza: z.coerce.date().optional(),
   rTecnica: z.coerce.date().optional(),
+  kmUltimoMantenimiento: z.coerce.number().nonnegative().optional(),
+  kmActual: z.coerce.number().nonnegative().optional(),
 });
 
 export const idParamSchema = z.object({
   id: z.string().uuid("Id invalido"),
 });
+
+export const mantenimientoIdParamSchema = z.object({
+  id: z.string().uuid("Id invalido"),
+  mantenimientoId: z.string().uuid("Id invalido"),
+});
+
+export const registerKmSchema = z
+  .object({
+    kmUltimoMantenimiento: z.coerce.number().nonnegative().optional(),
+    kmActual: z.coerce.number().nonnegative().optional(),
+  })
+  .refine((data) => data.kmUltimoMantenimiento !== undefined || data.kmActual !== undefined, {
+    message: "Cargar al menos un valor de KM",
+  });

@@ -1,10 +1,25 @@
 import { Router } from "express";
-import { create, getById, list, remove, update } from "../controllers/vehicle.controller.js";
+import {
+  create,
+  getById,
+  list,
+  listMantenimientos,
+  registerKm,
+  remove,
+  removeMantenimiento,
+  update,
+} from "../controllers/vehicle.controller.js";
 import { authenticate } from "../middlewares/authenticate.js";
 import { authorize } from "../middlewares/authorize.js";
 import { validate } from "../middlewares/validate.js";
 import { vehicleUpload } from "../middlewares/vehicleUpload.js";
-import { createVehicleSchema, idParamSchema, updateVehicleSchema } from "../validators/vehicle.validator.js";
+import {
+  createVehicleSchema,
+  idParamSchema,
+  mantenimientoIdParamSchema,
+  registerKmSchema,
+  updateVehicleSchema,
+} from "../validators/vehicle.validator.js";
 
 const router = Router();
 
@@ -33,5 +48,21 @@ router.patch(
 );
 
 router.delete("/:id", authorize("OWNER", "ADMIN"), validate(idParamSchema, "params"), remove);
+
+// Seccion Mecanica: registro de KM (deja historial) y su consulta.
+router.get("/:id/mantenimiento", validate(idParamSchema, "params"), listMantenimientos);
+router.post(
+  "/:id/mantenimiento",
+  authorize("OWNER", "ADMIN"),
+  validate(idParamSchema, "params"),
+  validate(registerKmSchema),
+  registerKm
+);
+router.delete(
+  "/:id/mantenimiento/:mantenimientoId",
+  authorize("OWNER", "ADMIN"),
+  validate(mantenimientoIdParamSchema, "params"),
+  removeMantenimiento
+);
 
 export default router;

@@ -1,8 +1,11 @@
 import {
   createVehicleRecordForActor,
+  deleteMantenimientoForActor,
   deleteVehicleForActor,
   getVehicleByIdForActor,
+  listMantenimientosForActor,
   listVehiclesForActor,
+  registerKmForActor,
   updateVehicleForActor,
 } from "../services/vehicle.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -29,5 +32,20 @@ export const update = asyncHandler(async (req, res) => {
 
 export const remove = asyncHandler(async (req, res) => {
   await deleteVehicleForActor(req.params.id);
+  res.status(204).send();
+});
+
+export const registerKm = asyncHandler(async (req, res) => {
+  const vehicle = await registerKmForActor(req.params.id, req.body, req.user.id);
+  res.status(200).json({ success: true, data: { vehicle } });
+});
+
+export const listMantenimientos = asyncHandler(async (req, res) => {
+  const mantenimientos = await listMantenimientosForActor(req.params.id);
+  res.status(200).json({ success: true, data: { mantenimientos } });
+});
+
+export const removeMantenimiento = asyncHandler(async (req, res) => {
+  await deleteMantenimientoForActor(req.params.id, req.params.mantenimientoId);
   res.status(204).send();
 });
