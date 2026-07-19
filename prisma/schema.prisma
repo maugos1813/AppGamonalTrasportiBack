@@ -68,6 +68,12 @@ model User {
   ubicacionLng         Float?
   ubicacionActualizada DateTime?
   compartirUbicacion   Boolean   @default(false)
+  // El chofer tiene un servicio activo pero el permiso de ubicacion en segundo plano
+  // del celular no esta en "Permitir todo el tiempo" (o fue revocado): el tracking en
+  // vivo no va a funcionar aunque compartirUbicacion este activo. Lo reporta el propio
+  // celular via useLocationSharing cuando el watcher nativo devuelve NOT_AUTHORIZED.
+  ubicacionPermisoDenegado    Boolean   @default(false)
+  ubicacionPermisoActualizada DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

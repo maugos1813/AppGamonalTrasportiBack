@@ -6,10 +6,11 @@ import {
   findRecordsSummary,
   updateRecordById,
 } from "../models/record.model.js";
-import { findUserById } from "../models/user.model.js";
+import { findUserById, findUserLocationById } from "../models/user.model.js";
 import { purgeFilesForRecord } from "./recordFile.service.js";
 import { geocodeStops } from "./geocoding.service.js";
 import { calculateRoute } from "./routing.service.js";
+import { LOCATION_FRESH_MINUTES } from "./user.service.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { AppError } from "../utils/AppError.js";
 
@@ -260,6 +261,37 @@ export const updateRecordForActor = async (actor, id, data) => {
 
   const updated = await updateRecordById(id, payload);
   return toResponse(updated, actor);
+};
+
+// Ruta en vivo desde la posicion GPS actual del chofer hasta la parada final del
+// servicio (no desde el deposito), a demanda: solo se llama cuando el OWNER/ADMIN
+// tiene este servicio abierto/seleccionado en el mapa, no en cada refresco de posiciones
+// para todos los servicios activos (eso saldria caro corriendolo cada 20s de mas).
+// Best-effort: si el servicio ya no esta en camino, la ubicacion del chofer no esta
+// fresca, o no hay parada geocodificada, se devuelve null y el mapa muestra "no disponible".
+export const getLiveEtaForRecord = async (id) => {
+  const record = await findRecordById(id);
+  if (!record) {
+    throw new AppError("Registro no encontrado", 404);
+  }
+  if (record.estado !== "IN_CONSEGNA") return null;
+
+  const driver = await findUserLocationById(record.driverId);
+  if (!driver || driver.ubicacionLat == null || driver.ubicacionLng == null) return null;
+
+  const staleSince = new Date(Date.now() - LOCATION_FRESH_MINUTES * 60 * 1000);
+  if (!driver.ubicacionActualizada || driver.ubicacionActualizada < staleSince) return null;
+
+  const finalStop = record.stops[record.stops.length - 1];
+  if (!finalStop || finalStop.lat == null || finalStop.lng == null) return null;
+
+  const ruta = await calculateRoute([
+    { lat: driver.ubicacionLat, lng: driver.ubicacionLng },
+    { lat: finalStop.lat, lng: finalStop.lng },
+  ]);
+  if (!ruta) return null;
+
+  return { distanciaKm: ruta.distanciaKm, duracionMin: ruta.duracionMin, geometria: ruta.geometria };
 };
 
 export const deleteRecord = async (id) => {

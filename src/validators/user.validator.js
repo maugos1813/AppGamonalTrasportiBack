@@ -48,3 +48,7 @@ export const updateLocationSchema = z.object({
   lat: z.coerce.number().min(-90, "Latitud invalida").max(90, "Latitud invalida"),
   lng: z.coerce.number().min(-180, "Longitud invalida").max(180, "Longitud invalida"),
 });
+
+export const updateLocationPermissionSchema = z.object({
+  denegado: z.boolean(),
+});

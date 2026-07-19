@@ -2,11 +2,13 @@ import { Router } from "express";
 import {
   create,
   getById,
+  getReturnEtaHandler,
   list,
   listLocations,
   remove,
   update,
   updateMyLocationHandler,
+  updateMyLocationPermissionHandler,
   uploadAvatar,
 } from "../controllers/user.controller.js";
 import { authenticate } from "../middlewares/authenticate.js";
@@ -16,6 +18,7 @@ import { validate } from "../middlewares/validate.js";
 import {
   createUserSchema,
   idParamSchema,
+  updateLocationPermissionSchema,
   updateLocationSchema,
   updateUserSchema,
 } from "../validators/user.validator.js";
@@ -29,6 +32,11 @@ router.get("/", authorize("OWNER", "ADMIN"), list);
 // Rutas especificas de ubicacion: deben ir antes de "/:id" para que Express no las
 // confunda con el parametro dinamico (ej. GET /ubicaciones no debe matchear GET /:id).
 router.patch("/me/ubicacion", validate(updateLocationSchema), updateMyLocationHandler);
+router.patch(
+  "/me/ubicacion-permiso",
+  validate(updateLocationPermissionSchema),
+  updateMyLocationPermissionHandler
+);
 router.get("/ubicaciones", authorize("OWNER", "ADMIN"), listLocations);
 
 router.get(
@@ -36,6 +44,14 @@ router.get(
   validate(idParamSchema, "params"),
   authorizeSelfOrRoles("OWNER", "ADMIN"),
   getById
+);
+
+// A demanda desde el mapa (solo el chofer libre abierto/seleccionado, no todos en cada poll).
+router.get(
+  "/:id/eta-regreso",
+  authorize("OWNER", "ADMIN"),
+  validate(idParamSchema, "params"),
+  getReturnEtaHandler
 );
 
 router.post("/", authorize("OWNER", "ADMIN"), validate(createUserSchema), create);

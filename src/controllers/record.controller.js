@@ -1,6 +1,7 @@
 import {
   createRecord,
   deleteRecord,
+  getLiveEtaForRecord,
   getRecordByIdForActor,
   listRecordsForActor,
   listRecordsSummaryForActor,
@@ -58,4 +59,11 @@ export const update = asyncHandler(async (req, res) => {
 export const remove = asyncHandler(async (req, res) => {
   await deleteRecord(req.params.id);
   res.status(204).send();
+});
+
+// A demanda desde el mapa: solo se pide para el servicio que el OWNER/ADMIN tiene
+// abierto/seleccionado en ese momento, no para todos los servicios activos.
+export const getLiveEta = asyncHandler(async (req, res) => {
+  const eta = await getLiveEtaForRecord(req.params.id);
+  res.status(200).json({ success: true, data: { eta } });
 });

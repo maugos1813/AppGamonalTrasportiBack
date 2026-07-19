@@ -48,6 +48,7 @@ export const findActiveRecordsByDriverIds = (driverIds) =>
   prisma.record.findMany({
     where: { estado: "IN_CONSEGNA", driverId: { in: driverIds } },
     select: {
+      id: true,
       driverId: true,
       codigo: true,
       destinazione: true,

@@ -14,6 +14,7 @@ export const SAFE_USER_SELECT = {
   numeroCelular: true,
   correoElectronico: true,
   compartirUbicacion: true,
+  ubicacionPermisoDenegado: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -62,8 +63,32 @@ export const deleteUserById = (id) => prisma.user.delete({ where: { id } });
 export const updateUserLocation = (id, lat, lng) =>
   prisma.user.update({
     where: { id },
-    data: { ubicacionLat: lat, ubicacionLng: lng, ubicacionActualizada: new Date() },
+    data: {
+      ubicacionLat: lat,
+      ubicacionLng: lng,
+      ubicacionActualizada: new Date(),
+      // Si llega una ubicacion nueva es porque el permiso funciona: limpia cualquier
+      // aviso previo de permiso denegado sin que el chofer tenga que hacer nada.
+      ubicacionPermisoDenegado: false,
+      ubicacionPermisoActualizada: new Date(),
+    },
     select: { id: true },
+  });
+
+export const updateUserLocationPermission = (id, denegado) =>
+  prisma.user.update({
+    where: { id },
+    data: { ubicacionPermisoDenegado: denegado, ubicacionPermisoActualizada: new Date() },
+    select: { id: true },
+  });
+
+// Solo los campos de ubicacion (no SAFE_USER_SELECT, que no los incluye a proposito
+// para no filtrar coordenadas GPS en cualquier fetch de usuario): usado a demanda para
+// calcular el ETA en vivo de un servicio o el regreso de un chofer libre al deposito.
+export const findUserLocationById = (id) =>
+  prisma.user.findUnique({
+    where: { id },
+    select: { id: true, ubicacionLat: true, ubicacionLng: true, ubicacionActualizada: true },
   });
 
 // Choferes activos con una ubicacion reciente (dentro de la ventana "fresca").

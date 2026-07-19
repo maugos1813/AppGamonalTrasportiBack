@@ -1,10 +1,12 @@
 import {
   createUser,
   deleteUser,
+  getReturnEtaForDriver,
   getUserById,
   listActiveDriverLocations,
   listUsers,
   updateMyLocation,
+  updateMyLocationPermission,
   updateUser,
   uploadUserAvatar,
 } from "../services/user.service.js";
@@ -49,7 +51,19 @@ export const updateMyLocationHandler = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true });
 });
 
+export const updateMyLocationPermissionHandler = asyncHandler(async (req, res) => {
+  await updateMyLocationPermission(req.user.id, req.body.denegado);
+  res.status(200).json({ success: true });
+});
+
 export const listLocations = asyncHandler(async (req, res) => {
   const ubicaciones = await listActiveDriverLocations();
   res.status(200).json({ success: true, data: { ubicaciones } });
+});
+
+// A demanda desde el mapa: solo se pide para el chofer libre que el OWNER/ADMIN tiene
+// abierto/seleccionado en ese momento, no para todos los choferes libres en cada poll.
+export const getReturnEtaHandler = asyncHandler(async (req, res) => {
+  const eta = await getReturnEtaForDriver(req.params.id);
+  res.status(200).json({ success: true, data: { eta } });
 });

@@ -4,11 +4,14 @@ import {
   deleteUserById,
   findAllUsers,
   findUserById,
+  findUserLocationById,
   findUsersWithFreshLocation,
   updateUserById,
   updateUserLocation,
+  updateUserLocationPermission,
 } from "../models/user.model.js";
 import { findActiveRecordsByDriverIds } from "../models/record.model.js";
+import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { calculateRoute } from "./routing.service.js";
 import { purgeDocumentsForUser } from "./document.service.js";
 import { deleteObject, getSignedUrlForKey, uploadObject } from "./storage.service.js";
@@ -115,53 +118,73 @@ export const uploadUserAvatar = async (targetId, file) => {
   return toUserResponse(updated);
 };
 
-const LOCATION_FRESH_MINUTES = 5;
+export const LOCATION_FRESH_MINUTES = 5;
 
 export const updateMyLocation = (actorId, { lat, lng }) => updateUserLocation(actorId, lat, lng);
 
-// Ruta en vivo desde la posicion GPS actual del chofer hasta la parada final del
-// servicio (no desde el deposito). Best-effort, igual que calculateRoute: si falla
-// o no hay parada geocodificada, se devuelve null y el mapa muestra "no disponible".
-const calculateLiveEta = async (user, record) => {
-  const finalStop = record.stops?.[0];
-  if (finalStop?.lat == null || finalStop?.lng == null) return null;
+export const updateMyLocationPermission = (actorId, denegado) =>
+  updateUserLocationPermission(actorId, denegado);
 
-  const ruta = await calculateRoute([
-    { lat: user.ubicacionLat, lng: user.ubicacionLng },
-    { lat: finalStop.lat, lng: finalStop.lng },
-  ]);
-  if (!ruta) return null;
-
-  return { distanciaKm: ruta.distanciaKm, duracionMin: ruta.duracionMin, geometria: ruta.geometria };
-};
-
-// Solo se exponen choferes con ubicacion reciente Y un servicio en camino ahora mismo
-// (no se rastrea fuera de un viaje activo).
+// Se exponen todos los choferes con ubicacion reciente, tengan o no un servicio en
+// camino ahora mismo: el chofer comparte ubicacion durante todo su horario laboral
+// (ver useLocationSharing en el frontend), no solo mientras reparte, asi que tambien
+// se lo ve "libre" volviendo de una entrega o esperando el proximo servicio - util
+// para mandarle el siguiente pedido al que este mas cerca. Un chofer puede tener MAS
+// DE UN servicio "en camino" a la vez (un OWNER/ADMIN puede compactar varias entregas
+// en un mismo viaje), asi que se devuelve una entrada por cada servicio activo -no una
+// sola por chofer-, todas con la misma posicion GPS. Solo son posiciones: NO calcula
+// ninguna ruta/ETA aca (eso saldria caro corriendolo cada 20s para todos los choferes
+// aunque nadie los este mirando) - el ETA en vivo de un servicio o el regreso al
+// deposito de un chofer libre se piden aparte, a demanda, solo para lo que el OWNER/
+// ADMIN tiene abierto en el mapa (ver getLiveEtaForRecord en record.service.js y
+// getReturnEtaForDriver mas abajo).
 export const listActiveDriverLocations = async () => {
   const since = new Date(Date.now() - LOCATION_FRESH_MINUTES * 60 * 1000);
   const users = await findUsersWithFreshLocation(since);
   if (users.length === 0) return [];
 
   const activeRecords = await findActiveRecordsByDriverIds(users.map((u) => u.id));
-  const recordByDriverId = Object.fromEntries(activeRecords.map((r) => [r.driverId, r]));
-  const activeUsers = users.filter((u) => recordByDriverId[u.id]);
+  const recordsByDriverId = activeRecords.reduce((acc, record) => {
+    (acc[record.driverId] ??= []).push(record);
+    return acc;
+  }, {});
 
-  return Promise.all(
-    activeUsers.map(async (u) => {
-      const record = recordByDriverId[u.id];
-      const { stops, ...servicio } = record;
-      return {
-        id: u.id,
-        nombre: u.nombre,
-        apellido: u.apellido,
-        lat: u.ubicacionLat,
-        lng: u.ubicacionLng,
-        actualizada: u.ubicacionActualizada,
-        servicio,
-        etaEnVivo: await calculateLiveEta(u, record),
-      };
-    })
-  );
+  return users.flatMap((u) => {
+    const records = recordsByDriverId[u.id];
+    const base = {
+      id: u.id,
+      nombre: u.nombre,
+      apellido: u.apellido,
+      lat: u.ubicacionLat,
+      lng: u.ubicacionLng,
+      actualizada: u.ubicacionActualizada,
+    };
+
+    if (!records?.length) {
+      return [{ ...base, servicio: null }];
+    }
+    return records.map(({ stops, ...servicio }) => ({ ...base, servicio }));
+  });
+};
+
+// Ruta en vivo desde la posicion GPS actual del chofer de vuelta al deposito (Via
+// Walter Tobagi, 8), a demanda: solo se llama cuando el OWNER/ADMIN abre en el mapa el
+// marcador de un chofer libre. Best-effort, igual que calculateRoute: si falla o la
+// ubicacion no esta fresca, se devuelve null y el mapa muestra "no disponible".
+export const getReturnEtaForDriver = async (driverId) => {
+  const user = await findUserLocationById(driverId);
+  if (!user || user.ubicacionLat == null || user.ubicacionLng == null) return null;
+
+  const staleSince = new Date(Date.now() - LOCATION_FRESH_MINUTES * 60 * 1000);
+  if (!user.ubicacionActualizada || user.ubicacionActualizada < staleSince) return null;
+
+  const ruta = await calculateRoute([
+    { lat: user.ubicacionLat, lng: user.ubicacionLng },
+    { lat: DEPOT_ORIGIN.lat, lng: DEPOT_ORIGIN.lng },
+  ]);
+  if (!ruta) return null;
+
+  return { distanciaKm: ruta.distanciaKm, duracionMin: ruta.duracionMin, geometria: ruta.geometria };
 };
 
 export const deleteUser = async (actor, targetId) => {

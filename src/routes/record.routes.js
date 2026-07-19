@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   create,
   getById,
+  getLiveEta,
   list,
   listByDay,
   listByMonth,
@@ -50,6 +51,14 @@ router.get("/:year(\\d{4})", validate(yearParamSchema, "params"), listByYear);
 router.post("/", authorize("OWNER", "ADMIN"), validate(createRecordSchema), create);
 
 router.get("/:id", validate(idParamSchema, "params"), getById);
+
+// A demanda desde el mapa (solo el servicio abierto/seleccionado, no todos en cada poll).
+router.get(
+  "/:id/eta-en-vivo",
+  authorize("OWNER", "ADMIN"),
+  validate(idParamSchema, "params"),
+  getLiveEta
+);
 
 router.patch("/:id", validate(idParamSchema, "params"), validate(updateRecordSchema), update);
 
