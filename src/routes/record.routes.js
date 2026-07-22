@@ -6,9 +6,11 @@ import {
   list,
   listByDay,
   listByMonth,
+  listPending,
   listSummaryByMonth,
   listByYear,
   remove,
+  search,
   update,
 } from "../controllers/record.controller.js";
 import { create as createFile, list as listFiles } from "../controllers/recordFile.controller.js";
@@ -31,6 +33,11 @@ const router = Router();
 router.use(authenticate);
 
 router.get("/", list);
+
+// "pending"/"search" no matchean el constraint numerico de las rutas de abajo, pero
+// igual deben registrarse antes de "/:id" (mas abajo) para no chocar con el UUID.
+router.get("/pending", listPending);
+router.get("/search", search);
 
 // Rutas con constraint numerico: deben registrarse antes de "/:id" para no chocar con el UUID.
 router.get(

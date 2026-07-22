@@ -3,8 +3,10 @@ import {
   deleteRecord,
   getLiveEtaForRecord,
   getRecordByIdForActor,
+  listPendingRecordsForActor,
   listRecordsForActor,
   listRecordsSummaryForActor,
+  searchRecordsForActor,
   updateRecordForActor,
 } from "../services/record.service.js";
 import { buildDateRange } from "../utils/dateRange.js";
@@ -17,6 +19,18 @@ export const create = asyncHandler(async (req, res) => {
 
 export const list = asyncHandler(async (req, res) => {
   const records = await listRecordsForActor(req.user);
+  res.status(200).json({ success: true, data: { records } });
+});
+
+// Panel de "Pendientes" de Registros: acotado a +/-3 dias, no el historico completo.
+export const listPending = asyncHandler(async (req, res) => {
+  const records = await listPendingRecordsForActor(req.user);
+  res.status(200).json({ success: true, data: { records } });
+});
+
+// Buscador de Registros (codigo/cliente/chofer/destino), con limite de resultados.
+export const search = asyncHandler(async (req, res) => {
+  const records = await searchRecordsForActor(req.user, req.query.q);
   res.status(200).json({ success: true, data: { records } });
 });
 

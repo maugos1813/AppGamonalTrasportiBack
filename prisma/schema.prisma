@@ -318,3 +318,21 @@ model RecordFile {
   @@index([recordId])
   @@map("record_files")
 }
+
+// Estado del ultimo sync manual con la hoja de AppSheet ("APP GT 1.0"). Una sola
+// fila por "source" (hoy solo "appsheet_registros"). El botón de sync en Mi Perfil
+// lee esto para mostrar "última sincronización" y para saber desde qué fecha mirar
+// filas nuevas sin tener que releer toda la hoja en cada corrida.
+model SyncState {
+  id              String    @id @default(uuid())
+  source          String    @unique
+  lastSyncedAt    DateTime?
+  lastRowDate     DateTime?
+  lastRunCreated  Int       @default(0)
+  lastRunSkipped  Int       @default(0)
+  lastRunErrors   Int       @default(0)
+  lastRunErrorLog Json?
+  updatedAt       DateTime  @updatedAt
+
+  @@map("sync_state")
+}

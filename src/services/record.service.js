@@ -3,7 +3,9 @@ import {
   deleteRecordById,
   findRecordById,
   findRecords,
+  findRecordsPending,
   findRecordsSummary,
+  searchRecords,
   updateRecordById,
 } from "../models/record.model.js";
 import { findUserById, findUserLocationById } from "../models/user.model.js";
@@ -110,11 +112,14 @@ const toFullResponse = (record) => {
     spedizzione: record.spedizzione,
     extrasPiazzaZona: record.extrasPiazzaZona,
     origen: DEPOT_ORIGIN,
-    stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
+    // record.stops es undefined en los resultados de listado (findRecords no trae
+    // la relacion, ver RECORD_SELECT_LIST) - solo esta presente en un fetch de un
+    // registro puntual (findRecordById).
+    stops: record.stops?.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
     ruta: {
       distanciaKm: record.rutaDistanciaKm,
       duracionMin: record.rutaDuracionMin,
-      geometria: record.rutaGeometria,
+      geometria: record.rutaGeometria ?? null,
     },
     horasDia: record.horasDia,
     horasNoche: record.horasNoche,
@@ -158,11 +163,11 @@ const toChoferResponse = (record) => ({
   spedizzione: record.spedizzione,
   extrasPiazzaZona: record.extrasPiazzaZona,
   origen: DEPOT_ORIGIN,
-  stops: record.stops.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
+  stops: record.stops?.map(({ id, orden, direccion, lat, lng }) => ({ id, orden, direccion, lat, lng })),
   ruta: {
     distanciaKm: record.rutaDistanciaKm,
     duracionMin: record.rutaDuracionMin,
-    geometria: record.rutaGeometria,
+    geometria: record.rutaGeometria ?? null,
   },
   horasDia: record.horasDia,
   horasNoche: record.horasNoche,
@@ -176,8 +181,12 @@ const toChoferResponse = (record) => ({
 
 const toResponse = (record, actor) => (isPrivileged(actor) ? toFullResponse(record) : toChoferResponse(record));
 
-export const createRecord = async (data) => {
-  await assertDriverActivo(data.driverId);
+// skipActiveCheck: solo para el sync de AppSheet (ver appsheetSync.service.js) - esos
+// registros son historicos (servicios que ya pasaron), no una asignacion nueva, asi
+// que no tiene sentido bloquear la carga porque el chofer hoy este INACTIVO. La API
+// normal de creacion de registros sigue exigiendo chofer activo.
+export const createRecord = async (data, { skipActiveCheck = false } = {}) => {
+  if (!skipActiveCheck) await assertDriverActivo(data.driverId);
 
   const { stops: direcciones, ...rest } = data;
   const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
@@ -201,6 +210,32 @@ export const createRecord = async (data) => {
 export const listRecordsForActor = async (actor, dateRange) => {
   const driverId = isPrivileged(actor) ? undefined : actor.id;
   const records = await findRecords({ driverId, dateRange });
+  return records.map((record) => toResponse(record, actor));
+};
+
+const PENDING_WINDOW_DAYS = 3;
+
+// Panel de "Pendientes" de Registros: servicios en curso, acotados a +/-3 dias de
+// fechaServicio - no tiene sentido traer el historico completo (miles de registros
+// con la sincronizacion de AppSheet) solo para mostrar los pocos que estan en curso.
+export const listPendingRecordsForActor = async (actor) => {
+  const driverId = isPrivileged(actor) ? undefined : actor.id;
+  const now = new Date();
+  const gte = new Date(now.getTime() - PENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const lte = new Date(now.getTime() + PENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const records = await findRecordsPending({ driverId, gte, lte });
+  return records.map((record) => toResponse(record, actor));
+};
+
+const SEARCH_MIN_LENGTH = 2;
+
+// Buscador de Registros (codigo/cliente/chofer/destino). Con menos de 2 caracteres
+// devuelve vacio en vez de traer resultados poco utiles.
+export const searchRecordsForActor = async (actor, q) => {
+  const query = (q ?? "").trim();
+  if (query.length < SEARCH_MIN_LENGTH) return [];
+  const driverId = isPrivileged(actor) ? undefined : actor.id;
+  const records = await searchRecords({ q: query, driverId });
   return records.map((record) => toResponse(record, actor));
 };
 
