@@ -6,3 +6,5 @@ dist/
 coverage/
 *.log
 .DS_Store
+config/google-service-account.json
+src/config/*.json
