@@ -96,7 +96,7 @@ export const findRecordDedupSignatures = async (since) => {
   });
   return records.map((r) => ({
     driverId: r.driverId,
-    dateKey: r.fechaServicio.toISOString().slice(0, 10),
+    dateKey: r.fechaServicio.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }),
     kilometros: r.kilometros,
   }));
 };

@@ -75,6 +75,8 @@ const SPEDIZZIONE_MAP = {
   DHL: "DHL",
   "AB SERVICE": "AB_SERVICE",
   AB_SERVICE: "AB_SERVICE",
+  "EXTRA PIAZZA": "EXTRA_PIAZZA",
+  EXTRA_PIAZZA: "EXTRA_PIAZZA",
 };
 
 // AUTISTA/TARGA en la planilla cruda a veces vienen como codigo interno de AppSheet
@@ -242,8 +244,12 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       // recientes de Extras Piazza y DHL/AB Service - esos no tienen origenExternoId,
       // asi que el chequeo de arriba no los reconoce. Esta firma (chofer + dia + km)
       // evita duplicarlos.
+      // dateKey en hora de Roma (no UTC crudo): el import manual viejo guardaba la fecha
+      // como medianoche Roma convertida a UTC, mientras que este parseo guarda la fecha
+      // de la planilla como medianoche UTC directo - un slice UTC crudo los desalineaba
+      // por un dia y la firma nunca matcheaba, duplicando cientos de registros ya cargados.
       const kilometros = parseNumber(row[idx["KM DESTINO"]]);
-      const dedupKey = `${driverId}|${fechaServicio.toISOString().slice(0, 10)}|${kilometros}`;
+      const dedupKey = `${driverId}|${fechaServicio.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" })}|${kilometros}`;
       if (dedupSignatures.has(dedupKey)) {
         skipped += 1;
         continue;
@@ -266,6 +272,9 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
         continue;
       }
 
+      // REGISTROS_TAB ("DHL CONSEGNAS") mezcla los 3 tipos de servicio (DHL, AB SERVICE,
+      // EXTRA PIAZZA) en la misma columna SPEDIZZIONE - no asumir un default aca, un valor
+      // que no matchea el mapa queda sin clasificar (revisar a mano) en vez de adivinar.
       const spedizzioneRaw = (row[idx["SPEDIZZIONE"]] ?? "").trim().toUpperCase();
       const spedizzione = SPEDIZZIONE_MAP[spedizzioneRaw];
 
