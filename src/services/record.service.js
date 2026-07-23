@@ -15,6 +15,7 @@ import { calculateRoute } from "./routing.service.js";
 import { LOCATION_FRESH_MINUTES } from "./user.service.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { AppError } from "../utils/AppError.js";
+import { buildDateRange } from "../utils/dateRange.js";
 
 const isPrivileged = (actor) => actor.cargo === "OWNER" || actor.cargo === "ADMIN";
 
@@ -213,17 +214,18 @@ export const listRecordsForActor = async (actor, dateRange) => {
   return records.map((record) => toResponse(record, actor));
 };
 
-const PENDING_WINDOW_DAYS = 3;
-
-// Panel de "Pendientes" de Registros: servicios en curso, acotados a +/-3 dias de
-// fechaServicio - no tiene sentido traer el historico completo (miles de registros
-// con la sincronizacion de AppSheet) solo para mostrar los pocos que estan en curso.
+// Panel de "Pendientes" de Registros: servicios en curso de HOY (hora local Europe/
+// Rome, no la del servidor) - no tiene sentido traer el historico completo (miles de
+// registros con la sincronizacion de AppSheet) solo para mostrar los pocos que estan
+// en curso.
 export const listPendingRecordsForActor = async (actor) => {
   const driverId = isPrivileged(actor) ? undefined : actor.id;
-  const now = new Date();
-  const gte = new Date(now.getTime() - PENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const lte = new Date(now.getTime() + PENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const records = await findRecordsPending({ driverId, gte, lte });
+  const [year, month, day] = new Date()
+    .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" })
+    .split("-")
+    .map(Number);
+  const { gte, lt } = buildDateRange(year, month, day);
+  const records = await findRecordsPending({ driverId, gte, lt });
   return records.map((record) => toResponse(record, actor));
 };
 

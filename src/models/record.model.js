@@ -139,11 +139,11 @@ export const searchRecords = ({ q, driverId }) =>
 // pocos que estan en curso ahora mismo.
 const EN_PROCESO_ESTADOS = ["IN_SOSPESO", "IN_CONSEGNA", "RITIRATO"];
 
-export const findRecordsPending = ({ driverId, gte, lte } = {}) =>
+export const findRecordsPending = ({ driverId, gte, lt } = {}) =>
   prisma.record.findMany({
     where: {
       estado: { in: EN_PROCESO_ESTADOS },
-      fechaServicio: { gte, lte },
+      fechaServicio: { gte, lt },
       ...(driverId ? { driverId } : {}),
     },
     select: RECORD_SELECT_LIST,
