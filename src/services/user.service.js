@@ -15,7 +15,7 @@ import {
 } from "../models/user.model.js";
 import { findActiveRecordsByDriverIds } from "../models/record.model.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
-import { calculateRoute } from "./routing.service.js";
+import { calculateRoute, snapPointsToRoad } from "./routing.service.js";
 import { purgeDocumentsForUser } from "./document.service.js";
 import { deleteObject, getSignedUrlForKey, uploadObject } from "./storage.service.js";
 import { compressAvatar } from "../utils/imageProcessor.js";
@@ -143,11 +143,49 @@ const haversineMeters = (a, b) => {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
 };
 
+// Un GPS "en frio" (chip recien arrancado, o que salio de mucho tiempo sin senal)
+// puede reportar varios fixes seguidos a kilometros de la posicion real hasta
+// asentarse - eso se ve en el mapa como saltos imposibles entre puntos lejanos en
+// pocos segundos. Se descarta ese fix antes de que contamine la ubicacion en vivo o
+// el historial, en vez de intentar corregirlo despues (el ajuste a la calle de
+// snapPointsToRoad asume una traza fisicamente plausible; un salto de varios km en
+// segundos no es "un desvio", es directamente ruido).
+const MAX_ACCURACY_METERS = 100;
+const MAX_PLAUSIBLE_SPEED_KMH = 160;
+// Piso minimo para el tiempo transcurrido al calcular la velocidad implicada - NO es
+// un umbral para saltear el chequeo. Un GPS en frio puede mandar varios fixes a
+// kilometros de distancia con centesimas de segundo de diferencia entre si (probado
+// contra un caso real: 116 puntos en 12 segundos, saltando varios km cada vez) - si
+// ese caso se saltea el chequeo por tener poco tiempo transcurrido, es exactamente el
+// caso mas implausible el que queda sin filtrar. Con el piso, un salto grande en poco
+// tiempo sigue dando una velocidad absurda y se rechaza igual.
+const MIN_ELAPSED_SECONDS_FLOOR = 2;
+const MIN_DISTANCE_METERS_FOR_SPEED_CHECK = 200;
+
+const isImplausibleFix = ({ lat, lng, accuracy }, lastKnown) => {
+  if (accuracy != null && accuracy > MAX_ACCURACY_METERS) return true;
+  if (lastKnown?.ubicacionLat == null || !lastKnown?.ubicacionActualizada) return false;
+
+  const distanceMeters = haversineMeters(
+    { lat: lastKnown.ubicacionLat, lng: lastKnown.ubicacionLng },
+    { lat, lng }
+  );
+  if (distanceMeters < MIN_DISTANCE_METERS_FOR_SPEED_CHECK) return false;
+
+  const rawElapsedSeconds = (Date.now() - lastKnown.ubicacionActualizada.getTime()) / 1000;
+  const elapsedSeconds = Math.max(rawElapsedSeconds, MIN_ELAPSED_SECONDS_FLOOR);
+  const impliedSpeedKmh = distanceMeters / 1000 / (elapsedSeconds / 3600);
+  return impliedSpeedKmh > MAX_PLAUSIBLE_SPEED_KMH;
+};
+
 // Ademas de pisar la ubicacion "actual" (para el mapa en vivo, siempre se actualiza),
 // guarda un ping en el historial - asi se puede reconstruir mas adelante la ruta real
 // de un dia puntual - salvo que el chofer siga parado en el mismo lugar que el ultimo
 // punto guardado, para no llenar el historial de puntos identicos.
-export const updateMyLocation = async (actorId, { lat, lng }) => {
+export const updateMyLocation = async (actorId, { lat, lng, accuracy }) => {
+  const lastKnown = await findUserLocationById(actorId);
+  if (isImplausibleFix({ lat, lng, accuracy }, lastKnown)) return;
+
   const lastPing = await findLastLocationPing(actorId);
   const isStationary = lastPing && haversineMeters(lastPing, { lat, lng }) < STATIONARY_RADIUS_METERS;
 
@@ -161,9 +199,14 @@ export const updateMyLocationPermission = (actorId, denegado) =>
   updateUserLocationPermission(actorId, denegado);
 
 // Ruta real de un chofer en un dia puntual (00:00 a 00:00 del dia siguiente, hora
-// local Europe/Rome ya resuelta por el caller via el rango gte/lt).
-export const getDriverRouteHistory = (driverId, gte, lt) =>
-  findLocationPingsByDriverAndRange(driverId, gte, lt);
+// local Europe/Rome ya resuelta por el caller via el rango gte/lt). Se ajusta a la
+// calle vehicular mas cercana (ver snapPointsToRoad) para que un desvio peatonal -el
+// chofer entrando a una casa o a una oficina a entregar- no se vea en el mapa como
+// parte del trayecto en vehiculo.
+export const getDriverRouteHistory = async (driverId, gte, lt) => {
+  const puntos = await findLocationPingsByDriverAndRange(driverId, gte, lt);
+  return snapPointsToRoad(puntos);
+};
 
 // Se exponen todos los choferes con ubicacion reciente, tengan o no un servicio en
 // camino ahora mismo: el chofer comparte ubicacion durante todo su horario laboral

@@ -27,3 +27,59 @@ export const calculateRoute = async (points) => {
     return null;
   }
 };
+
+// El servidor publico de OSRM no matchea trazas muy largas en una sola llamada -
+// se parte en tandas conservadoras (como el limite de 100 puntos de Google Roads API).
+const MATCH_CHUNK_SIZE = 100;
+
+// Radio de busqueda (metros) que se le pasa a cada punto para el matching. No se
+// guarda la precision real del GPS del celular, asi que se usa un valor generoso fijo
+// en vez de asumir la precision de un GPS de auto con hardware dedicado.
+const GPS_MATCH_RADIUS_METERS = 30;
+
+const snapChunk = async (chunk) => {
+  if (chunk.length < 2) return chunk;
+
+  try {
+    const coords = chunk.map((p) => `${p.lng},${p.lat}`).join(";");
+    const timestamps = chunk.map((p) => Math.floor(new Date(p.recordedAt).getTime() / 1000)).join(";");
+    const radiuses = chunk.map(() => GPS_MATCH_RADIUS_METERS).join(";");
+
+    const url = new URL(`/match/v1/driving/${coords}`, env.OSRM_BASE_URL);
+    url.searchParams.set("overview", "false");
+    url.searchParams.set("timestamps", timestamps);
+    url.searchParams.set("radiuses", radiuses);
+
+    const response = await fetch(url);
+    if (!response.ok) return chunk;
+
+    const data = await response.json();
+    if (data.code !== "Ok" || !data.tracepoints) return chunk;
+
+    return data.tracepoints.map((tracepoint, i) =>
+      tracepoint?.location
+        ? { ...chunk[i], lat: tracepoint.location[1], lng: tracepoint.location[0] }
+        : chunk[i]
+    );
+  } catch {
+    return chunk;
+  }
+};
+
+// Ajusta el recorrido real de un chofer (ver LocationPing) a la calle vehicular mas
+// cercana, asi un desvio peatonal (el chofer caminando dentro de una casa o de una
+// oficina para entregar) no se ve en el mapa como si fuera parte del trayecto en
+// vehiculo. Best-effort y por tanda: si el matching de una tanda falla o no matchea
+// algun punto puntual, esos puntos se devuelven tal cual en vez de romper la ruta
+// completa.
+export const snapPointsToRoad = async (points) => {
+  if (points.length < 2) return points;
+
+  const chunks = [];
+  for (let i = 0; i < points.length; i += MATCH_CHUNK_SIZE) {
+    chunks.push(points.slice(i, i + MATCH_CHUNK_SIZE));
+  }
+
+  const snappedChunks = await Promise.all(chunks.map(snapChunk));
+  return snappedChunks.flat();
+};

@@ -47,6 +47,10 @@ export const idParamSchema = z.object({
 export const updateLocationSchema = z.object({
   lat: z.coerce.number().min(-90, "Latitud invalida").max(90, "Latitud invalida"),
   lng: z.coerce.number().min(-180, "Longitud invalida").max(180, "Longitud invalida"),
+  // Radio de incertidumbre en metros que reporta el propio GPS del celular (puede no
+  // venir, ej. si el navegador no lo expone) - se usa para descartar fixes de mala
+  // calidad antes de que contaminen la ubicacion en vivo o el historial de ruta.
+  accuracy: z.coerce.number().min(0).optional(),
 });
 
 export const updateLocationPermissionSchema = z.object({
