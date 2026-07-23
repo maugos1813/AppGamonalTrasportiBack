@@ -160,7 +160,7 @@ export const findRecordsSummary = ({ driverId, dateRange } = {}) =>
       ...(driverId ? { driverId } : {}),
       ...(dateRange ? { fechaServicio: { gte: dateRange.gte, lt: dateRange.lt } } : {}),
     },
-    select: { id: true, fechaServicio: true, estado: true, spedizzione: true },
+    select: { id: true, fechaServicio: true, estado: true, spedizzione: true, kilometros: true, kilometrosReales: true },
     orderBy: { fechaServicio: "desc" },
   });
 

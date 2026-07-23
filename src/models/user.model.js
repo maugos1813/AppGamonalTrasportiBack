@@ -75,6 +75,29 @@ export const updateUserLocation = (id, lat, lng) =>
     select: { id: true },
   });
 
+// Historial de posiciones (ver LocationPing en schema.prisma) - se inserta ademas de
+// pisar ubicacionLat/Lng en updateUserLocation, no en su lugar: una sirve para "donde
+// esta ahora" (lectura rapida, un solo row por chofer) y la otra para reconstruir la
+// ruta de un dia puntual mas adelante.
+export const createLocationPing = (driverId, lat, lng) =>
+  prisma.locationPing.create({ data: { driverId, lat, lng }, select: { id: true } });
+
+// Ultimo punto guardado en el historial de ese chofer, para decidir en el service si
+// el nuevo ping es un movimiento real o solo ruido/heartbeat estando quieto.
+export const findLastLocationPing = (driverId) =>
+  prisma.locationPing.findFirst({
+    where: { driverId },
+    orderBy: { recordedAt: "desc" },
+    select: { lat: true, lng: true },
+  });
+
+export const findLocationPingsByDriverAndRange = (driverId, gte, lt) =>
+  prisma.locationPing.findMany({
+    where: { driverId, recordedAt: { gte, lt } },
+    select: { lat: true, lng: true, recordedAt: true },
+    orderBy: { recordedAt: "asc" },
+  });
+
 export const updateUserLocationPermission = (id, denegado) =>
   prisma.user.update({
     where: { id },

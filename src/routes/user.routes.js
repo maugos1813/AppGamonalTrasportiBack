@@ -3,6 +3,7 @@ import {
   create,
   getById,
   getReturnEtaHandler,
+  getRouteHistoryHandler,
   list,
   listLocations,
   remove,
@@ -18,6 +19,7 @@ import { validate } from "../middlewares/validate.js";
 import {
   createUserSchema,
   idParamSchema,
+  routeHistoryParamSchema,
   updateLocationPermissionSchema,
   updateLocationSchema,
   updateUserSchema,
@@ -52,6 +54,15 @@ router.get(
   authorize("OWNER", "ADMIN"),
   validate(idParamSchema, "params"),
   getReturnEtaHandler
+);
+
+// Ruta real que hizo un chofer un dia puntual (ver LocationPing) - a demanda, solo
+// cuando OWNER/ADMIN quiere revisar un dia especifico, no en cada poll del mapa en vivo.
+router.get(
+  "/:id/ruta/:year(\\d{4})/:month(\\d{1,2})/:day(\\d{1,2})",
+  authorize("OWNER", "ADMIN"),
+  validate(routeHistoryParamSchema, "params"),
+  getRouteHistoryHandler
 );
 
 router.post("/", authorize("OWNER", "ADMIN"), validate(createUserSchema), create);

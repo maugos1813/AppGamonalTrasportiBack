@@ -80,6 +80,7 @@ model User {
   documentos Documento[]
   records    Record[]
   mantenimientosRegistrados MantenimientoVehiculo[]
+  locationPings LocationPing[]
 
   @@map("users")
 }
@@ -335,4 +336,20 @@ model SyncState {
   updatedAt       DateTime  @updatedAt
 
   @@map("sync_state")
+}
+
+// Historial de posiciones GPS del chofer (tracking continuo durante todo su horario
+// laboral, ver useLocationSharing en el front) - a diferencia de User.ubicacionLat/Lng
+// (que se pisa en cada actualizacion y solo sirve para "donde esta ahora"), esto
+// permite reconstruir la ruta real que hizo un dia puntual, aunque sea de semanas atras.
+model LocationPing {
+  id         String   @id @default(uuid())
+  driverId   String
+  driver     User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  lat        Float
+  lng        Float
+  recordedAt DateTime @default(now())
+
+  @@index([driverId, recordedAt])
+  @@map("location_pings")
 }

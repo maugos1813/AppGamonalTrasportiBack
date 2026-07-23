@@ -52,3 +52,10 @@ export const updateLocationSchema = z.object({
 export const updateLocationPermissionSchema = z.object({
   denegado: z.boolean(),
 });
+
+export const routeHistoryParamSchema = z.object({
+  id: z.string().uuid("Id invalido"),
+  year: z.coerce.number().int().min(1970).max(3000),
+  month: z.coerce.number().int().min(1).max(12),
+  day: z.coerce.number().int().min(1).max(31),
+});

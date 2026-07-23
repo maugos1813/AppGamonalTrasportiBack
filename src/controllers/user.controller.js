@@ -1,6 +1,7 @@
 import {
   createUser,
   deleteUser,
+  getDriverRouteHistory,
   getReturnEtaForDriver,
   getUserById,
   listActiveDriverLocations,
@@ -12,6 +13,7 @@ import {
 } from "../services/user.service.js";
 import { AppError } from "../utils/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { buildDateRange } from "../utils/dateRange.js";
 
 export const list = asyncHandler(async (req, res) => {
   const users = await listUsers();
@@ -66,4 +68,10 @@ export const listLocations = asyncHandler(async (req, res) => {
 export const getReturnEtaHandler = asyncHandler(async (req, res) => {
   const eta = await getReturnEtaForDriver(req.params.id);
   res.status(200).json({ success: true, data: { eta } });
+});
+
+export const getRouteHistoryHandler = asyncHandler(async (req, res) => {
+  const { gte, lt } = buildDateRange(req.params.year, req.params.month, req.params.day);
+  const puntos = await getDriverRouteHistory(req.params.id, gte, lt);
+  res.status(200).json({ success: true, data: { puntos } });
 });

@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  createLocationPing,
   createUser as createUserRecord,
   deleteUserById,
   findAllUsers,
+  findLastLocationPing,
+  findLocationPingsByDriverAndRange,
   findUserById,
   findUserLocationById,
   findUsersWithFreshLocation,
@@ -120,10 +123,47 @@ export const uploadUserAvatar = async (targetId, file) => {
 
 export const LOCATION_FRESH_MINUTES = 5;
 
-export const updateMyLocation = (actorId, { lat, lng }) => updateUserLocation(actorId, lat, lng);
+// El chofer parado (repartiendo, esperando firma, etc.) no dispara el watcher nativo
+// por distancia (ver useLocationSharing en el frontend), asi que la app reenvia la
+// misma posicion como heartbeat para que el mapa no lo de por "no disponible" a los 5
+// min. Si el nuevo punto cae dentro de este radio del ultimo guardado en el
+// historial, se considera el mismo lugar: no tiene sentido apilar un punto de ruta
+// identico por cada heartbeat.
+const STATIONARY_RADIUS_METERS = 20;
+
+const EARTH_RADIUS_METERS = 6371000;
+
+const haversineMeters = (a, b) => {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
+};
+
+// Ademas de pisar la ubicacion "actual" (para el mapa en vivo, siempre se actualiza),
+// guarda un ping en el historial - asi se puede reconstruir mas adelante la ruta real
+// de un dia puntual - salvo que el chofer siga parado en el mismo lugar que el ultimo
+// punto guardado, para no llenar el historial de puntos identicos.
+export const updateMyLocation = async (actorId, { lat, lng }) => {
+  const lastPing = await findLastLocationPing(actorId);
+  const isStationary = lastPing && haversineMeters(lastPing, { lat, lng }) < STATIONARY_RADIUS_METERS;
+
+  await Promise.all([
+    updateUserLocation(actorId, lat, lng),
+    isStationary ? Promise.resolve() : createLocationPing(actorId, lat, lng),
+  ]);
+};
 
 export const updateMyLocationPermission = (actorId, denegado) =>
   updateUserLocationPermission(actorId, denegado);
+
+// Ruta real de un chofer en un dia puntual (00:00 a 00:00 del dia siguiente, hora
+// local Europe/Rome ya resuelta por el caller via el rango gte/lt).
+export const getDriverRouteHistory = (driverId, gte, lt) =>
+  findLocationPingsByDriverAndRange(driverId, gte, lt);
 
 // Se exponen todos los choferes con ubicacion reciente, tengan o no un servicio en
 // camino ahora mismo: el chofer comparte ubicacion durante todo su horario laboral
