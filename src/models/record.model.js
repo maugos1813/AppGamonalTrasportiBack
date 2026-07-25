@@ -101,12 +101,13 @@ export const findRecordDedupSignatures = async (since) => {
   }));
 };
 
-// filters: { driverId?: string, dateRange?: { gte: Date, lt: Date } }
-export const findRecords = ({ driverId, dateRange } = {}) =>
+// filters: { driverId?: string, dateRange?: { gte: Date, lt: Date }, spedizzioneFilter?: object }
+export const findRecords = ({ driverId, dateRange, spedizzioneFilter } = {}) =>
   prisma.record.findMany({
     where: {
       ...(driverId ? { driverId } : {}),
       ...(dateRange ? { fechaServicio: { gte: dateRange.gte, lt: dateRange.lt } } : {}),
+      ...(spedizzioneFilter ?? {}),
     },
     select: RECORD_SELECT_LIST,
     orderBy: { fechaServicio: "desc" },
@@ -116,16 +117,23 @@ export const findRecords = ({ driverId, dateRange } = {}) =>
 // mientras se busca, no para traer todo el historico y filtrar en el navegador.
 const SEARCH_RESULTS_LIMIT = 50;
 
-export const searchRecords = ({ q, driverId }) =>
+export const searchRecords = ({ q, driverId, spedizzioneFilter }) =>
   prisma.record.findMany({
     where: {
       ...(driverId ? { driverId } : {}),
-      OR: [
-        { codigo: { contains: q, mode: "insensitive" } },
-        { destinazione: { contains: q, mode: "insensitive" } },
-        { client: { nombre: { contains: q, mode: "insensitive" } } },
-        { driver: { nombre: { contains: q, mode: "insensitive" } } },
-        { driver: { apellido: { contains: q, mode: "insensitive" } } },
+      // spedizzioneFilter (EXTRAS_PIAZZA) trae su propia clave OR - en AND aparte para
+      // no pisar el OR de los campos de busqueda de abajo.
+      AND: [
+        spedizzioneFilter ?? {},
+        {
+          OR: [
+            { codigo: { contains: q, mode: "insensitive" } },
+            { destinazione: { contains: q, mode: "insensitive" } },
+            { client: { nombre: { contains: q, mode: "insensitive" } } },
+            { driver: { nombre: { contains: q, mode: "insensitive" } } },
+            { driver: { apellido: { contains: q, mode: "insensitive" } } },
+          ],
+        },
       ],
     },
     select: RECORD_SELECT_LIST,
@@ -139,12 +147,13 @@ export const searchRecords = ({ q, driverId }) =>
 // pocos que estan en curso ahora mismo.
 const EN_PROCESO_ESTADOS = ["IN_SOSPESO", "IN_CONSEGNA", "RITIRATO"];
 
-export const findRecordsPending = ({ driverId, gte, lt } = {}) =>
+export const findRecordsPending = ({ driverId, gte, lt, spedizzioneFilter } = {}) =>
   prisma.record.findMany({
     where: {
       estado: { in: EN_PROCESO_ESTADOS },
       fechaServicio: { gte, lt },
       ...(driverId ? { driverId } : {}),
+      ...(spedizzioneFilter ?? {}),
     },
     select: RECORD_SELECT_LIST,
     orderBy: { eta: "asc" },
@@ -154,11 +163,12 @@ export const findRecordsPending = ({ driverId, gte, lt } = {}) =>
 // (conteos), sin stops/ruta/economico. El agrupado por dia calendario se hace en el
 // frontend (misma logica que ya usa para la vista completa), asi no hay riesgo de
 // que el "dia" del backend no coincida con el "dia" que ve el usuario en su huso horario.
-export const findRecordsSummary = ({ driverId, dateRange } = {}) =>
+export const findRecordsSummary = ({ driverId, dateRange, spedizzioneFilter } = {}) =>
   prisma.record.findMany({
     where: {
       ...(driverId ? { driverId } : {}),
       ...(dateRange ? { fechaServicio: { gte: dateRange.gte, lt: dateRange.lt } } : {}),
+      ...(spedizzioneFilter ?? {}),
     },
     select: { id: true, fechaServicio: true, estado: true, spedizzione: true, kilometros: true, kilometrosReales: true },
     orderBy: { fechaServicio: "desc" },

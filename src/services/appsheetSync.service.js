@@ -5,9 +5,9 @@ import { findVehicles } from "../models/vehicle.model.js";
 import { findClients, createClient } from "../models/client.model.js";
 import { findAllCodigos, findRecordByOrigenExternoId, findRecordDedupSignatures } from "../models/record.model.js";
 import { createRecord } from "./record.service.js";
+import { ESTADO_MAP, ORIGEN_PREFIX, REGISTROS_TAB, SPEDIZZIONE_MAP, ZONA_MAP } from "../constants/appsheetMaps.js";
 
 const SOURCE = "appsheet_registros";
-const ORIGEN_PREFIX = "appsheet:";
 
 // Desde donde se sincroniza por defecto (el historico mas viejo de la planilla no se
 // toca - ver la conversacion con el owner: formato mas variado ahi, no vale el riesgo
@@ -17,7 +17,6 @@ const SYNC_FROM_DATE = new Date(process.env.APPSHEET_SYNC_FROM_DATE || "2026-03-
 // Nombres exactos de pestana en "APP GT 1.0" (planilla de ~59 pestanas). "Id_Trabajador"
 // e "ID_FURGON" tambien aparecen en otras pestanas de seguimiento (puntajes semanales,
 // asignaciones), asi que se referencian por nombre en vez de buscar por columna.
-const REGISTROS_TAB = "DHL CONSEGNAS";
 const PERSONNEL_TAB = "Hoja 1";
 const VEHICLES_TAB = "Hoja 2";
 
@@ -56,28 +55,6 @@ const parseNumber = (raw) => {
 };
 
 const normalizeName = (value) => (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-
-const ESTADO_MAP = {
-  CONSEGNATO: "CONSEGNATO",
-  ENTREGADO: "CONSEGNATO",
-  "IN CONSEGNA": "IN_CONSEGNA",
-  "IN SOSPESO": "IN_SOSPESO",
-  PENDIENTE: "IN_SOSPESO",
-  RITIRATO: "RITIRATO",
-  RETIRADO: "RITIRATO",
-  ANNULLATO: "ANNULLATO",
-  ANULADO: "ANNULLATO",
-  RISCHEDULATO: "RISCHEDULATO",
-  REPROGRAMADO: "RISCHEDULATO",
-};
-
-const SPEDIZZIONE_MAP = {
-  DHL: "DHL",
-  "AB SERVICE": "AB_SERVICE",
-  AB_SERVICE: "AB_SERVICE",
-  "EXTRA PIAZZA": "EXTRA_PIAZZA",
-  EXTRA_PIAZZA: "EXTRA_PIAZZA",
-};
 
 // AUTISTA/TARGA en la planilla cruda a veces vienen como codigo interno de AppSheet
 // (ej "G006", "F001", referenciando las pestanas de choferes/vehiculos) y a veces
@@ -278,6 +255,9 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       const spedizzioneRaw = (row[idx["SPEDIZZIONE"]] ?? "").trim().toUpperCase();
       const spedizzione = SPEDIZZIONE_MAP[spedizzioneRaw];
 
+      const zonaRaw = (row[idx["ZONA"]] ?? "").trim().toUpperCase();
+      const extrasPiazzaZona = ZONA_MAP[zonaRaw];
+
       const descripcion = (row[idx["DATOS CONSEGNA"]] ?? "").trim() || `${clienteRaw.trim()} - ${ciudad}`;
 
       // El CODIGO de la planilla no es realmente unico (AppSheet reutiliza el mismo
@@ -308,6 +288,7 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
         ciudad: ciudad || undefined,
         stops: [stop],
         spedizzione,
+        extrasPiazzaZona,
         kilometros: kilometros ?? undefined,
         areaC: parseNumber(row[idx["AREA C"]]) ?? undefined,
         costoEspera: parseNumber(row[idx["PRECIO ATTESA"]]) ?? undefined,

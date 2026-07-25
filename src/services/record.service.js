@@ -13,14 +13,37 @@ import { purgeFilesForRecord } from "./recordFile.service.js";
 import { geocodeStops } from "./geocoding.service.js";
 import { calculateRoute } from "./routing.service.js";
 import { LOCATION_FRESH_MINUTES } from "./user.service.js";
+import { appendRecordToAppsheet } from "./appsheetWriteback.service.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
+import { ORIGEN_PREFIX } from "../constants/appsheetMaps.js";
 import { AppError } from "../utils/AppError.js";
 import { buildDateRange } from "../utils/dateRange.js";
 
 const isPrivileged = (actor) => actor.cargo === "OWNER" || actor.cargo === "ADMIN";
 
+// Un ADMIN "de area" (User.area) solo ve/gestiona Registros y Control economico de su
+// propia area - OWNER no tiene restriccion. Los registros historicos sin spedizzione
+// cargada se tratan como EXTRA_PIAZZA (mismo criterio que SECTIONS.matchesSpedizzione
+// en el frontend), por eso el OR con null. Un area sin mapeo (ej. FARMACIA, que hoy no
+// tiene registros propios) no matchea nada: deny-by-default en vez de ver todo.
+const AREA_SPEDIZZIONE_WHERE = {
+  EXTRAS_PIAZZA: { OR: [{ spedizzione: "EXTRA_PIAZZA" }, { spedizzione: null }] },
+  DHL: { spedizzione: { in: ["DHL", "AB_SERVICE"] } },
+};
+const AREA_SPEDIZZIONES = {
+  EXTRAS_PIAZZA: ["EXTRA_PIAZZA", null],
+  DHL: ["DHL", "AB_SERVICE"],
+};
+
+const spedizzioneFilterForActor = (actor) =>
+  actor.cargo === "ADMIN" ? (AREA_SPEDIZZIONE_WHERE[actor.area] ?? { spedizzione: { in: [] } }) : undefined;
+
+const canAccessSpedizzione = (actor, spedizzione) =>
+  actor.cargo !== "ADMIN" || (AREA_SPEDIZZIONES[actor.area] ?? []).includes(spedizzione ?? null);
+
 const assertAccess = (actor, record) => {
-  if (isPrivileged(actor) || record.driverId === actor.id) return;
+  if (actor.cargo === "OWNER" || record.driverId === actor.id) return;
+  if (isPrivileged(actor) && canAccessSpedizzione(actor, record.spedizzione)) return;
   throw new AppError("No tienes permisos para realizar esta accion", 403);
 };
 
@@ -186,8 +209,14 @@ const toResponse = (record, actor) => (isPrivileged(actor) ? toFullResponse(reco
 // registros son historicos (servicios que ya pasaron), no una asignacion nueva, asi
 // que no tiene sentido bloquear la carga porque el chofer hoy este INACTIVO. La API
 // normal de creacion de registros sigue exigiendo chofer activo.
-export const createRecord = async (data, { skipActiveCheck = false } = {}) => {
+export const createRecord = async (data, { skipActiveCheck = false, actor = null } = {}) => {
   if (!skipActiveCheck) await assertDriverActivo(data.driverId);
+
+  // actor=null (sync de AppSheet) no valida area: es un proceso de confianza que
+  // importa historico de todas las areas, no una creacion manual desde la UI.
+  if (actor && !canAccessSpedizzione(actor, data.spedizzione ?? null)) {
+    throw new AppError("No tienes permisos para crear un registro fuera de tu area", 403);
+  }
 
   const { stops: direcciones, ...rest } = data;
   const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
@@ -205,12 +234,26 @@ export const createRecord = async (data, { skipActiveCheck = false } = {}) => {
     clienteConfirmado: data.clienteConfirmado ?? false,
   });
 
+  // Solo para registros nuevos creados desde la app (el sync ya manda origenExternoId
+  // seteado, escribirlo de vuelta a la hoja seria redundante - ver appsheetSync.service.js).
+  // Best-effort: si falla la escritura en Sheets (permisos, red, cuota), el registro en
+  // la app ya quedo creado igual, no se corta el flujo del usuario por eso.
+  if (!data.origenExternoId) {
+    try {
+      await appendRecordToAppsheet(record);
+      await updateRecordById(record.id, { origenExternoId: `${ORIGEN_PREFIX}${record.id}` });
+    } catch (err) {
+      console.error("No se pudo escribir el registro en la hoja de AppSheet:", err.message);
+    }
+  }
+
   return toFullResponse(record);
 };
 
 export const listRecordsForActor = async (actor, dateRange) => {
   const driverId = isPrivileged(actor) ? undefined : actor.id;
-  const records = await findRecords({ driverId, dateRange });
+  const spedizzioneFilter = spedizzioneFilterForActor(actor);
+  const records = await findRecords({ driverId, dateRange, spedizzioneFilter });
   return records.map((record) => toResponse(record, actor));
 };
 
@@ -225,7 +268,8 @@ export const listPendingRecordsForActor = async (actor) => {
     .split("-")
     .map(Number);
   const { gte, lt } = buildDateRange(year, month, day);
-  const records = await findRecordsPending({ driverId, gte, lt });
+  const spedizzioneFilter = spedizzioneFilterForActor(actor);
+  const records = await findRecordsPending({ driverId, gte, lt, spedizzioneFilter });
   return records.map((record) => toResponse(record, actor));
 };
 
@@ -237,7 +281,8 @@ export const searchRecordsForActor = async (actor, q) => {
   const query = (q ?? "").trim();
   if (query.length < SEARCH_MIN_LENGTH) return [];
   const driverId = isPrivileged(actor) ? undefined : actor.id;
-  const records = await searchRecords({ q: query, driverId });
+  const spedizzioneFilter = spedizzioneFilterForActor(actor);
+  const records = await searchRecords({ q: query, driverId, spedizzioneFilter });
   return records.map((record) => toResponse(record, actor));
 };
 
@@ -246,7 +291,8 @@ export const searchRecordsForActor = async (actor, q) => {
 // aca, asi que no hace falta distinguir toFullResponse/toChoferResponse.
 export const listRecordsSummaryForActor = async (actor, dateRange) => {
   const driverId = isPrivileged(actor) ? undefined : actor.id;
-  return findRecordsSummary({ driverId, dateRange });
+  const spedizzioneFilter = spedizzioneFilterForActor(actor);
+  return findRecordsSummary({ driverId, dateRange, spedizzioneFilter });
 };
 
 export const getRecordByIdForActor = async (actor, id) => {
@@ -264,6 +310,10 @@ export const updateRecordForActor = async (actor, id, data) => {
     throw new AppError("Registro no encontrado", 404);
   }
   assertAccess(actor, record);
+
+  if (actor.cargo === "ADMIN" && "spedizzione" in data && !canAccessSpedizzione(actor, data.spedizzione)) {
+    throw new AppError("No tienes permisos para mover este registro fuera de tu area", 403);
+  }
 
   let payload = data;
 
@@ -331,11 +381,12 @@ export const getLiveEtaForRecord = async (id) => {
   return { distanciaKm: ruta.distanciaKm, duracionMin: ruta.duracionMin, geometria: ruta.geometria };
 };
 
-export const deleteRecord = async (id) => {
+export const deleteRecord = async (actor, id) => {
   const record = await findRecordById(id);
   if (!record) {
     throw new AppError("Registro no encontrado", 404);
   }
+  assertAccess(actor, record);
 
   await purgeFilesForRecord(id);
   await deleteRecordById(id);

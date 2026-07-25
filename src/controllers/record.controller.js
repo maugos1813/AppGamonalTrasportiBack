@@ -13,12 +13,20 @@ import { buildDateRange } from "../utils/dateRange.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const create = asyncHandler(async (req, res) => {
-  const record = await createRecord(req.body);
+  const record = await createRecord(req.body, { actor: req.user });
   res.status(201).json({ success: true, data: { record } });
 });
 
+// ?days=N (opcional): acota a los ultimos N dias en vez de traer todo el historico -
+// usado por paginas que solo necesitan una ventana reciente (ej. Resumen general/
+// semanal). Sin el query param, comportamiento identico a siempre (todo el historial).
 export const list = asyncHandler(async (req, res) => {
-  const records = await listRecordsForActor(req.user);
+  const days = Number(req.query.days);
+  const dateRange =
+    Number.isFinite(days) && days > 0
+      ? { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000), lt: new Date(Date.now() + 24 * 60 * 60 * 1000) }
+      : undefined;
+  const records = await listRecordsForActor(req.user, dateRange);
   res.status(200).json({ success: true, data: { records } });
 });
 
@@ -71,7 +79,7 @@ export const update = asyncHandler(async (req, res) => {
 });
 
 export const remove = asyncHandler(async (req, res) => {
-  await deleteRecord(req.params.id);
+  await deleteRecord(req.user, req.params.id);
   res.status(204).send();
 });
 
