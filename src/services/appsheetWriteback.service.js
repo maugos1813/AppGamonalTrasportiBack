@@ -1,6 +1,8 @@
-import { appendSheetRow } from "./googleSheets.service.js";
+import { appendSheetRow, deleteSheetRow, findRowNumberByColumnValue } from "./googleSheets.service.js";
 import {
   ESTADO_REVERSE,
+  getMesLabel,
+  ORIGEN_PREFIX,
   REGISTROS_TAB,
   SPEDIZZIONE_REVERSE,
   ZONA_REVERSE,
@@ -17,11 +19,19 @@ const toSheetDate = (value) => {
   return `${dd}/${mm}/${d.getUTCFullYear()}`;
 };
 
-const toSheetTime = (value) => {
+// ETA puede caer en un dia distinto al de DATA (un servicio de hoy con entrega
+// pactada para dentro de unos dias) - se escribe fecha+hora completa ("dd/mm/yyyy
+// hh:mm:ss", el formato que ya usa la mayoria de las filas historicas de la
+// planilla), nunca solo la hora: una celda con solo "hh:mm" pierde el dia y ademas
+// Sheets la guarda como un serial de tiempo puro (epoch 30/12/1899), que AppSheet
+// termina mostrando como "30/12/1899 hh:mm" si la columna espera fecha+hora.
+const toSheetDateTime = (value) => {
   const d = new Date(value);
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mi = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${hh}:${mi}`;
+  return `${dd}/${mm}/${d.getUTCFullYear()} ${hh}:${mi}:00`;
 };
 
 // Escribe en "DHL CONSEGNAS" el registro recien creado desde la app (Extras Piazza o
@@ -34,12 +44,13 @@ export const appendRecordToAppsheet = async (record) => {
   const row = {
     ID: record.id,
     DATA: toSheetDate(record.fechaServicio),
+    MES: getMesLabel(record.fechaServicio),
     ESTADO: ESTADO_REVERSE[record.estado] ?? "",
     AUTISTA: record.driver ? `${record.driver.nombre} ${record.driver.apellido}` : "",
     TARGA: record.vehicle?.targa ?? "",
     "KM DESTINO": record.kilometros ?? "",
     CLIENTE: record.client?.nombre ?? "",
-    ETA: toSheetTime(record.eta),
+    ETA: toSheetDateTime(record.eta),
     CIUDAD: record.ciudad ?? "",
     DESTINAZIONE: record.destinazione ?? "",
     SPEDIZZIONE: record.spedizzione ? SPEDIZZIONE_REVERSE[record.spedizzione] ?? "" : "",
@@ -58,4 +69,19 @@ export const appendRecordToAppsheet = async (record) => {
   };
 
   await appendSheetRow(REGISTROS_TAB, row);
+};
+
+// Borra de "DHL CONSEGNAS" la fila de un registro eliminado desde la app. origenExternoId
+// es "appsheet:<ID de la columna ID en la hoja>" (ver ORIGEN_PREFIX) - para un registro
+// creado desde la app es su propio id (appendRecordToAppsheet escribe ID: record.id),
+// para uno que vino del sync es el id original de la fila en la hoja; en ambos casos
+// sacarle el prefijo da el valor real de la columna ID a buscar. Un registro que nunca
+// se pudo escribir en la hoja (ver el catch en record.service.js) no tiene
+// origenExternoId - no hay nada que borrar ahi.
+export const deleteRecordFromAppsheet = async (record) => {
+  if (!record.origenExternoId?.startsWith(ORIGEN_PREFIX)) return;
+  const sheetId = record.origenExternoId.slice(ORIGEN_PREFIX.length);
+  const rowNumber = await findRowNumberByColumnValue(REGISTROS_TAB, "ID", sheetId);
+  if (rowNumber === null) return;
+  await deleteSheetRow(REGISTROS_TAB, rowNumber);
 };

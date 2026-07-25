@@ -75,6 +75,89 @@ export const fetchSheetHeader = async (tabName) => {
   return header;
 };
 
+// Ubica la fila (numero absoluto 1-indexado en la hoja) donde una columna dada tiene
+// cierto valor - por ejemplo, encontrar la fila de "ID" para poder corregir una sola
+// celda de un registro existente (backfill puntual) sin tocar el resto de la fila.
+export const findRowNumberByColumnValue = async (tabName, columnName, value) => {
+  const sheets = await getSheetsClient();
+  const { data } = await sheets.spreadsheets.values.get({
+    spreadsheetId: APPSHEET_SPREADSHEET_ID,
+    range: `'${tabName}'!A:AZ`,
+  });
+  const values = data.values ?? [];
+  const headerIndex = values.findIndex((row) => row.length > 0);
+  if (headerIndex === -1) return null;
+  const colIndex = values[headerIndex].findIndex((h) => h.trim() === columnName);
+  if (colIndex === -1) return null;
+  for (let i = headerIndex + 1; i < values.length; i += 1) {
+    if ((values[i][colIndex] ?? "").trim() === String(value)) {
+      return i + 1;
+    }
+  }
+  return null;
+};
+
+const columnIndexToLetter = (index) => {
+  let letter = "";
+  let n = index + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+};
+
+// Borra una fila entera (identificada por numero de fila absoluto, ver
+// findRowNumberByColumnValue) - las filas de abajo se corren hacia arriba, como
+// borrar una fila a mano en Sheets. No se usa values.clear: eso dejaria una fila en
+// blanco en el medio en vez de sacarla, y AppSheet seguiria contandola.
+export const deleteSheetRow = async (tabName, rowNumber) => {
+  const sheets = await getSheetsClient();
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: APPSHEET_SPREADSHEET_ID,
+    fields: "sheets.properties",
+  });
+  const properties = meta.data.sheets.find((s) => s.properties.title === tabName)?.properties;
+  if (!properties) {
+    throw new AppError(`No se encontro la pestana "${tabName}" en la planilla de AppSheet.`, 500);
+  }
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: APPSHEET_SPREADSHEET_ID,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: properties.sheetId,
+              dimension: "ROWS",
+              startIndex: rowNumber - 1,
+              endIndex: rowNumber,
+            },
+          },
+        },
+      ],
+    },
+  });
+};
+
+// Corrige una unica celda de una fila ya existente (identificada por numero de fila
+// absoluto, ver findRowNumberByColumnValue), en vez de reescribir la fila entera.
+export const updateSheetCell = async (tabName, rowNumber, columnName, value) => {
+  const header = await fetchSheetHeader(tabName);
+  const colIndex = header.findIndex((h) => h.trim() === columnName);
+  if (colIndex === -1) {
+    throw new AppError(`La columna "${columnName}" no existe en "${tabName}".`, 500);
+  }
+  const sheets = await getSheetsClient();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: APPSHEET_SPREADSHEET_ID,
+    range: `'${tabName}'!${columnIndexToLetter(colIndex)}${rowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [[value]] },
+  });
+};
+
 // Agrega una fila al final de una pestana. valuesByHeader: { "NOMBRE COLUMNA": valor }
 // - se arma en el orden real de columnas de la hoja (pidiendo el header actual), asi
 // que una columna que todavia no existe ahi (ej. "ZONA" antes de agregarla) se ignora

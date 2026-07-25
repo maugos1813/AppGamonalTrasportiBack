@@ -51,3 +51,25 @@ const reverseFirstMatch = (map) => {
 export const ESTADO_REVERSE = reverseFirstMatch(ESTADO_MAP);
 export const SPEDIZZIONE_REVERSE = reverseFirstMatch(SPEDIZZIONE_MAP);
 export const ZONA_REVERSE = reverseFirstMatch(ZONA_MAP);
+
+const MESES_ES = [
+  "ENERO",
+  "FEBRERO",
+  "MARZO",
+  "ABRIL",
+  "MAYO",
+  "JUNIO",
+  "JULIO",
+  "AGOSTO",
+  "SEPTIEMBRE",
+  "OCTUBRE",
+  "NOVIEMBRE",
+  "DICIEMBRE",
+];
+
+// Columna "MES" de la hoja: "7. JULIO", "8. AGOSTO", etc, derivado del mes UTC de
+// fechaServicio (mismo criterio que toSheetDate en appsheetWriteback.service.js).
+export const getMesLabel = (value) => {
+  const mes = new Date(value).getUTCMonth() + 1;
+  return `${mes}. ${MESES_ES[mes - 1]}`;
+};

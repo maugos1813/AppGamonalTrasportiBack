@@ -13,7 +13,7 @@ import { purgeFilesForRecord } from "./recordFile.service.js";
 import { geocodeStops } from "./geocoding.service.js";
 import { calculateRoute } from "./routing.service.js";
 import { LOCATION_FRESH_MINUTES } from "./user.service.js";
-import { appendRecordToAppsheet } from "./appsheetWriteback.service.js";
+import { appendRecordToAppsheet, deleteRecordFromAppsheet } from "./appsheetWriteback.service.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { ORIGEN_PREFIX } from "../constants/appsheetMaps.js";
 import { AppError } from "../utils/AppError.js";
@@ -390,4 +390,12 @@ export const deleteRecord = async (actor, id) => {
 
   await purgeFilesForRecord(id);
   await deleteRecordById(id);
+
+  // Best-effort, igual que la escritura al crear (ver createRecord): si falla (permisos,
+  // red, cuota), el registro ya se borro de la app igual, no se corta el flujo por esto.
+  try {
+    await deleteRecordFromAppsheet(record);
+  } catch (err) {
+    console.error("No se pudo borrar el registro de la hoja de AppSheet:", err.message);
+  }
 };

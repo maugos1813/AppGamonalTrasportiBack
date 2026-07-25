@@ -9,10 +9,20 @@ import { ESTADO_MAP, ORIGEN_PREFIX, REGISTROS_TAB, SPEDIZZIONE_MAP, ZONA_MAP } f
 
 const SOURCE = "appsheet_registros";
 
-// Desde donde se sincroniza por defecto (el historico mas viejo de la planilla no se
-// toca - ver la conversacion con el owner: formato mas variado ahi, no vale el riesgo
-// de un mapeo automatico sin revision).
-const SYNC_FROM_DATE = new Date(process.env.APPSHEET_SYNC_FROM_DATE || "2026-03-01T00:00:00.000Z");
+// Desde donde se sincroniza por defecto cuando no se pasa fromDate. Rolling (1 mes
+// atras de hoy), no una fecha fija: todo lo anterior a eso ya esta sincronizado (o
+// fuera del rango que se revisa en cada corrida), asi que no vale la pena que cada
+// sync recorra + consulte la base para meses ya resueltos. Se recalcula en cada
+// llamada (no una constante de modulo) para que sea realmente rolling en un proceso
+// de servidor de larga duracion. APPSHEET_SYNC_FROM_DATE sigue disponible para fijar
+// una fecha puntual (ej. reprocesar el historico viejo de la planilla a mano).
+const getDefaultSyncFromDate = () => {
+  if (process.env.APPSHEET_SYNC_FROM_DATE) return new Date(process.env.APPSHEET_SYNC_FROM_DATE);
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+};
 
 // Nombres exactos de pestana en "APP GT 1.0" (planilla de ~59 pestanas). "Id_Trabajador"
 // e "ID_FURGON" tambien aparecen en otras pestanas de seguimiento (puntajes semanales,
@@ -44,6 +54,28 @@ const parseSheetDate = (dateRaw, timeRaw) => {
 
   const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), h, mi));
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+// La celda ETA de la planilla mezcla dos formatos historicos: a veces trae fecha+hora
+// completa en la misma celda ("dd/mm/yyyy h:mm[:ss]"), que puede ser un dia distinto
+// al de DATA (un servicio de hoy con entrega pactada para dentro de unos dias); a
+// veces trae solo la hora ("h:mm"), asumiendo el mismo dia que DATA. parseSheetDate
+// (arriba) solo reconoce el segundo caso - si se le pasa "24/07/2026 11:00:00" como
+// timeRaw, el regex de hora no matchea nada y devuelve silenciosamente medianoche,
+// perdiendo la hora Y el dia real (~3800 filas historicas asi). Se prueba primero el
+// formato fecha+hora completo antes de caer al criterio viejo de "solo hora + DATA".
+const parseEtaCell = (etaRaw, dataRaw) => {
+  if (!etaRaw) return null;
+  const trimmed = etaRaw.trim();
+
+  const fullMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (fullMatch) {
+    const [, d, mo, y, h, mi] = fullMatch;
+    const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi)));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return parseSheetDate(dataRaw, trimmed);
 };
 
 const parseNumber = (raw) => {
@@ -105,12 +137,12 @@ const DRIVER_NAME_OVERRIDES = {
 // dryRun: no crea nada (ni clientes ni registros) - solo devuelve que HARIA el sync.
 // Pensado para validar el mapeo de la planilla antes de una corrida real.
 // fromDate/toDate: acotan que rango de fechas de servicio se sincroniza (por defecto
-// desde SYNC_FROM_DATE hasta ahora). Sirve para correr el historico grande de a
-// pedazos (ej. un mes a la vez) en vez de todo junto - una corrida mas chica termina
-// mas rapido y no satura el pool de conexiones a Neon con miles de geocodificaciones
-// seguidas en un solo request.
+// desde getDefaultSyncFromDate() hasta ahora, ver arriba). Sirve para correr el
+// historico grande de a pedazos (ej. un mes a la vez) en vez de todo junto - una
+// corrida mas chica termina mas rapido y no satura el pool de conexiones a Neon con
+// miles de geocodificaciones seguidas en un solo request.
 export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDate } = {}) => {
-  const rangeStart = fromDate ?? SYNC_FROM_DATE;
+  const rangeStart = fromDate ?? getDefaultSyncFromDate();
   const rangeEnd = toDate ?? null;
 
   const [
@@ -239,14 +271,27 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       }
       const clientId = await resolveClientId(clienteRaw);
 
-      const eta = parseSheetDate(dataRaw, row[idx["ETA"]]) ?? fechaServicio;
+      const eta = parseEtaCell(row[idx["ETA"]], dataRaw) ?? fechaServicio;
+
+      const zonaRaw = (row[idx["ZONA"]] ?? "").trim().toUpperCase();
+      const extrasPiazzaZona = ZONA_MAP[zonaRaw];
 
       const ciudad = (row[idx["CIUDAD"]] ?? "").trim();
       const calle = (row[idx["DESTINAZIONE"]] ?? "").trim();
-      const stop = calle ? (ciudad ? `${calle}, ${ciudad}` : calle) : ciudad;
+      let stop = calle ? (ciudad ? `${calle}, ${ciudad}` : calle) : ciudad;
       if (!stop) {
         errors.push({ row: rowNumber, id: originId, reason: "sin direccion (CIUDAD/DESTINAZIONE vacios)" });
         continue;
+      }
+      // "VARIOS": el chofer hizo varias entregas sueltas en la zona ese dia, sin un
+      // destino unico cargado (cientos de filas historicas de EXTRA_PIAZZA asi, no es
+      // un error de tipeo puntual) - no es un topónimo real, Google Geocoding siempre
+      // lo rechaza (ZERO_RESULTS) y tira abajo el registro entero. Se reemplaza por el
+      // centro de la zona (ZONA Milano/Roma si vino cargada, si no Milano - sede del
+      // deposito, ver DEPOT_ORIGIN) para poder geocodificar igual; es una aproximacion
+      // razonable ya que el km facturado sale de KM DESTINO, no de esta ruta calculada.
+      if (stop.trim().toUpperCase() === "VARIOS") {
+        stop = extrasPiazzaZona === "ROMA" ? "Roma, Italia" : "Milano, Italia";
       }
 
       // REGISTROS_TAB ("DHL CONSEGNAS") mezcla los 3 tipos de servicio (DHL, AB SERVICE,
@@ -254,9 +299,6 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       // que no matchea el mapa queda sin clasificar (revisar a mano) en vez de adivinar.
       const spedizzioneRaw = (row[idx["SPEDIZZIONE"]] ?? "").trim().toUpperCase();
       const spedizzione = SPEDIZZIONE_MAP[spedizzioneRaw];
-
-      const zonaRaw = (row[idx["ZONA"]] ?? "").trim().toUpperCase();
-      const extrasPiazzaZona = ZONA_MAP[zonaRaw];
 
       const descripcion = (row[idx["DATOS CONSEGNA"]] ?? "").trim() || `${clienteRaw.trim()} - ${ciudad}`;
 
