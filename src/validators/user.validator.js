@@ -35,6 +35,8 @@ export const updateUserSchema = z
     correoElectronico: z.string().trim().email().optional(),
     password: passwordSchema.optional(),
     compartirUbicacion: z.boolean().optional(),
+    vehiculoAsignadoId: z.string().uuid("Vehiculo invalido").nullable().optional(),
+    reperibilidadNoDisponible: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Debe enviar al menos un campo para actualizar",
@@ -55,6 +57,10 @@ export const updateLocationSchema = z.object({
 
 export const updateLocationPermissionSchema = z.object({
   denegado: z.boolean(),
+});
+
+export const updateReperibilidadSchema = z.object({
+  noDisponible: z.boolean(),
 });
 
 export const routeHistoryParamSchema = z.object({

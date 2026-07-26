@@ -83,12 +83,17 @@ export const appendRecordToAppsheet = async (record) => {
 // updateSheetRow: no pisa columnas ajenas a este mapeo). Un registro que nunca se
 // pudo escribir en la hoja (ver el catch en record.service.js) no tiene
 // origenExternoId - no hay fila que corregir.
+// ID se fuerza a sheetId (no record.id): buildAppsheetRow siempre pone record.id en
+// ID porque appendRecordToAppsheet la necesita asi para una fila nueva, pero aca la
+// fila ya existe con su propio ID de planilla - pisarlo con nuestro UUID interno
+// descoordina esa columna del origenExternoId guardado y el proximo sync termina
+// reimportando la fila como si fuera nueva (duplicando el registro).
 export const updateRecordInAppsheet = async (record) => {
   if (!record.origenExternoId?.startsWith(ORIGEN_PREFIX)) return;
   const sheetId = record.origenExternoId.slice(ORIGEN_PREFIX.length);
   const rowNumber = await findRowNumberByColumnValue(REGISTROS_TAB, "ID", sheetId);
   if (rowNumber === null) return;
-  await updateSheetRow(REGISTROS_TAB, rowNumber, buildAppsheetRow(record));
+  await updateSheetRow(REGISTROS_TAB, rowNumber, { ...buildAppsheetRow(record), ID: sheetId });
 };
 
 // Borra de "DHL CONSEGNAS" la fila de un registro eliminado desde la app. origenExternoId

@@ -8,6 +8,7 @@ import {
   listUsers,
   updateMyLocation,
   updateMyLocationPermission,
+  updateMyReperibilidad,
   updateUser,
   uploadUserAvatar,
 } from "../services/user.service.js";
@@ -56,6 +57,11 @@ export const updateMyLocationHandler = asyncHandler(async (req, res) => {
 export const updateMyLocationPermissionHandler = asyncHandler(async (req, res) => {
   await updateMyLocationPermission(req.user.id, req.body.denegado);
   res.status(200).json({ success: true });
+});
+
+export const updateMyReperibilidadHandler = asyncHandler(async (req, res) => {
+  const user = await updateMyReperibilidad(req.user.id, req.body.noDisponible);
+  res.status(200).json({ success: true, data: { user } });
 });
 
 export const listLocations = asyncHandler(async (req, res) => {

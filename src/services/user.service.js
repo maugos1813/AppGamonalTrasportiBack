@@ -12,6 +12,7 @@ import {
   updateUserById,
   updateUserLocation,
   updateUserLocationPermission,
+  updateUserReperibilidad,
 } from "../models/user.model.js";
 import { findActiveRecordsByDriverIds } from "../models/record.model.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
@@ -92,6 +93,14 @@ export const updateUser = async (actor, targetId, data) => {
 
   if (payload.password) {
     payload = { ...payload, password: await hashPassword(payload.password) };
+  }
+
+  // OWNER/ADMIN puede marcar/desmarcar la reperibilita de otro chofer directamente
+  // desde Resumen > Reperibilita (ademas del propio chofer via PATCH /me/reperibilidad) -
+  // en los dos casos hay que refrescar la fecha, si no el criterio de "solo cuenta si
+  // se marco hoy" (ver isReperibilidadNoDisponibleHoy en el frontend) nunca la toma.
+  if (payload.reperibilidadNoDisponible !== undefined) {
+    payload = { ...payload, reperibilidadActualizada: new Date() };
   }
 
   const user = await findUserById(targetId);
@@ -197,6 +206,14 @@ export const updateMyLocation = async (actorId, { lat, lng, accuracy }) => {
 
 export const updateMyLocationPermission = (actorId, denegado) =>
   updateUserLocationPermission(actorId, denegado);
+
+// El propio chofer se marca "no disponible" para la reperibilita de esta noche (o se
+// desmarca) - toUserResponse resuelve la URL firmada del avatar igual que cualquier
+// otra respuesta de usuario, aunque aca no cambie.
+export const updateMyReperibilidad = async (actorId, noDisponible) => {
+  const updated = await updateUserReperibilidad(actorId, noDisponible);
+  return toUserResponse(updated);
+};
 
 // Ruta real de un chofer en un dia puntual (00:00 a 00:00 del dia siguiente, hora
 // local Europe/Rome ya resuelta por el caller via el rango gte/lt). Se ajusta a la

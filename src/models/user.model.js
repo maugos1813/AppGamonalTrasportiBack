@@ -15,6 +15,10 @@ export const SAFE_USER_SELECT = {
   correoElectronico: true,
   compartirUbicacion: true,
   ubicacionPermisoDenegado: true,
+  reperibilidadNoDisponible: true,
+  reperibilidadActualizada: true,
+  vehiculoAsignadoId: true,
+  vehiculoAsignado: { select: { id: true, targa: true, modelo: true } },
   createdAt: true,
   updatedAt: true,
 };
@@ -96,6 +100,13 @@ export const findLocationPingsByDriverAndRange = (driverId, gte, lt) =>
     where: { driverId, recordedAt: { gte, lt } },
     select: { lat: true, lng: true, recordedAt: true },
     orderBy: { recordedAt: "asc" },
+  });
+
+export const updateUserReperibilidad = (id, noDisponible) =>
+  prisma.user.update({
+    where: { id },
+    data: { reperibilidadNoDisponible: noDisponible, reperibilidadActualizada: new Date() },
+    select: SAFE_USER_SELECT,
   });
 
 export const updateUserLocationPermission = (id, denegado) =>

@@ -74,6 +74,18 @@ model User {
   // celular via useLocationSharing cuando el watcher nativo devuelve NOT_AUTHORIZED.
   ubicacionPermisoDenegado    Boolean   @default(false)
   ubicacionPermisoActualizada DateTime?
+  // Reperibilita (choferes Extras Piazza): el chofer se marca "no disponible" para la
+  // noche si no quiere aparecer en el listado aunque este libre. Se lee junto con la
+  // fecha - si reperibilidadActualizada no es de hoy, el flag quedo de un dia anterior
+  // y se ignora (vuelve a "disponible" solo, sin necesidad de un cron que lo resetee).
+  reperibilidadNoDisponible   Boolean   @default(false)
+  reperibilidadActualizada    DateTime?
+  // Vehiculo "habitual" del chofer (lo carga OWNER/ADMIN desde la ficha del chofer) -
+  // independiente del vehicleId de cada Record puntual, que sigue siendo el vehiculo
+  // real usado en ESE servicio. Sirve para mostrar de un vistazo con que vehiculo sale
+  // cada chofer (ver "Reperibilita" en Resumen), sin tener que cruzar dos listas.
+  vehiculoAsignadoId   String?
+  vehiculoAsignado     Vehiculo? @relation(fields: [vehiculoAsignadoId], references: [id])
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -126,6 +138,7 @@ model Vehiculo {
 
   records        Record[]
   mantenimientos MantenimientoVehiculo[]
+  choferesAsignados User[]
 
   @@map("vehiculos")
 }

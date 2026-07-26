@@ -10,6 +10,7 @@ import {
   update,
   updateMyLocationHandler,
   updateMyLocationPermissionHandler,
+  updateMyReperibilidadHandler,
   uploadAvatar,
 } from "../controllers/user.controller.js";
 import { authenticate } from "../middlewares/authenticate.js";
@@ -22,6 +23,7 @@ import {
   routeHistoryParamSchema,
   updateLocationPermissionSchema,
   updateLocationSchema,
+  updateReperibilidadSchema,
   updateUserSchema,
 } from "../validators/user.validator.js";
 
@@ -38,6 +40,11 @@ router.patch(
   "/me/ubicacion-permiso",
   validate(updateLocationPermissionSchema),
   updateMyLocationPermissionHandler
+);
+router.patch(
+  "/me/reperibilidad",
+  validate(updateReperibilidadSchema),
+  updateMyReperibilidadHandler
 );
 router.get("/ubicaciones", authorize("OWNER", "ADMIN"), listLocations);
 
