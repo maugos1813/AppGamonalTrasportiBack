@@ -158,6 +158,34 @@ export const updateSheetCell = async (tabName, rowNumber, columnName, value) => 
   });
 };
 
+// Corrige una fila ya existente (identificada por numero de fila absoluto, ver
+// findRowNumberByColumnValue) con varias columnas a la vez. A diferencia de
+// appendSheetRow, esto NO pisa con "" las columnas que no vienen en valuesByHeader -
+// se conserva lo que ya estaba en esa celda (ej. "AUTOSTRADA", "TURNO", cargadas a
+// mano en AppSheet y sin campo propio en Record) para no perder datos ajenos a esta
+// actualizacion puntual.
+export const updateSheetRow = async (tabName, rowNumber, valuesByHeader) => {
+  const sheets = await getSheetsClient();
+  const [header, existingRow] = await Promise.all([
+    fetchSheetHeader(tabName),
+    sheets.spreadsheets.values
+      .get({ spreadsheetId: APPSHEET_SPREADSHEET_ID, range: `'${tabName}'!A${rowNumber}:AZ${rowNumber}` })
+      .then((res) => res.data.values?.[0] ?? []),
+  ]);
+
+  const row = header.map((columnName, i) => {
+    const key = columnName.trim();
+    return key in valuesByHeader ? valuesByHeader[key] : (existingRow[i] ?? "");
+  });
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: APPSHEET_SPREADSHEET_ID,
+    range: `'${tabName}'!A${rowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [row] },
+  });
+};
+
 // Agrega una fila al final de una pestana. valuesByHeader: { "NOMBRE COLUMNA": valor }
 // - se arma en el orden real de columnas de la hoja (pidiendo el header actual), asi
 // que una columna que todavia no existe ahi (ej. "ZONA" antes de agregarla) se ignora

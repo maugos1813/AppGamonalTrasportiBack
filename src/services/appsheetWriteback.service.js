@@ -1,4 +1,9 @@
-import { appendSheetRow, deleteSheetRow, findRowNumberByColumnValue } from "./googleSheets.service.js";
+import {
+  appendSheetRow,
+  deleteSheetRow,
+  findRowNumberByColumnValue,
+  updateSheetRow,
+} from "./googleSheets.service.js";
 import {
   ESTADO_REVERSE,
   getMesLabel,
@@ -34,41 +39,56 @@ const toSheetDateTime = (value) => {
   return `${dd}/${mm}/${d.getUTCFullYear()} ${hh}:${mi}:00`;
 };
 
-// Escribe en "DHL CONSEGNAS" el registro recien creado desde la app (Extras Piazza o
-// DHL/AB Service - la pestana ya mezcla los 3 tipos, ver SPEDIZZIONE_MAP). Mapeo
-// inverso exacto del que lee appsheetSync.service.js. AUTOSTRADA/N. PART no tienen
-// vuelta (se pliegan dentro de "comentarios" al leer, sin campo propio en Record),
-// quedan vacios al escribir. record debe venir con driver/vehicle/client incluidos
-// (ya los trae RECORD_INCLUDE, ver record.model.js).
-export const appendRecordToAppsheet = async (record) => {
-  const row = {
-    ID: record.id,
-    DATA: toSheetDate(record.fechaServicio),
-    MES: getMesLabel(record.fechaServicio),
-    ESTADO: ESTADO_REVERSE[record.estado] ?? "",
-    AUTISTA: record.driver ? `${record.driver.nombre} ${record.driver.apellido}` : "",
-    TARGA: record.vehicle?.targa ?? "",
-    "KM DESTINO": record.kilometros ?? "",
-    CLIENTE: record.client?.nombre ?? "",
-    ETA: toSheetDateTime(record.eta),
-    CIUDAD: record.ciudad ?? "",
-    DESTINAZIONE: record.destinazione ?? "",
-    SPEDIZZIONE: record.spedizzione ? SPEDIZZIONE_REVERSE[record.spedizzione] ?? "" : "",
-    "DATOS CONSEGNA": record.descripcion ?? "",
-    "CÓDIGO": record.codigo ?? "",
-    NOTAS: record.comentarios ?? "",
-    "AREA C": record.areaC ?? "",
-    "PRECIO ATTESA": record.costoEspera ?? "",
-    MONTO: record.pagoRecibido ?? "",
-    "GASTO COMBUSTIBLE": record.costoCombustible ?? "",
-    "PEAJES €": record.peajes ?? "",
-    "VIGNETTA €": record.vignetta ?? "",
-    "PRECIO HOTEL": record.costoHotel ?? "",
-    "TRAFORO/FREJUS €": record.costoTraforoFrejusBrennero ?? "",
-    ZONA: record.extrasPiazzaZona ? ZONA_REVERSE[record.extrasPiazzaZona] ?? "" : "",
-  };
+// Mapeo inverso exacto del que lee appsheetSync.service.js, compartido entre alta
+// (appendRecordToAppsheet) y edicion (updateRecordInAppsheet) - asi ambas escriben
+// siempre las mismas columnas de la misma forma. AUTOSTRADA/N. PART no tienen vuelta
+// (se pliegan dentro de "comentarios" al leer, sin campo propio en Record), quedan
+// vacios al escribir. record debe venir con driver/vehicle/client incluidos (ya los
+// trae RECORD_INCLUDE, ver record.model.js).
+const buildAppsheetRow = (record) => ({
+  ID: record.id,
+  DATA: toSheetDate(record.fechaServicio),
+  MES: getMesLabel(record.fechaServicio),
+  ESTADO: ESTADO_REVERSE[record.estado] ?? "",
+  AUTISTA: record.driver ? `${record.driver.nombre} ${record.driver.apellido}` : "",
+  TARGA: record.vehicle?.targa ?? "",
+  "KM DESTINO": record.kilometros ?? "",
+  CLIENTE: record.client?.nombre ?? "",
+  ETA: toSheetDateTime(record.eta),
+  CIUDAD: record.ciudad ?? "",
+  DESTINAZIONE: record.destinazione ?? "",
+  SPEDIZZIONE: record.spedizzione ? SPEDIZZIONE_REVERSE[record.spedizzione] ?? "" : "",
+  "DATOS CONSEGNA": record.descripcion ?? "",
+  "CÓDIGO": record.codigo ?? "",
+  NOTAS: record.comentarios ?? "",
+  "AREA C": record.areaC ?? "",
+  "PRECIO ATTESA": record.costoEspera ?? "",
+  MONTO: record.pagoRecibido ?? "",
+  "GASTO COMBUSTIBLE": record.costoCombustible ?? "",
+  "PEAJES €": record.peajes ?? "",
+  "VIGNETTA €": record.vignetta ?? "",
+  "PRECIO HOTEL": record.costoHotel ?? "",
+  "TRAFORO/FREJUS €": record.costoTraforoFrejusBrennero ?? "",
+  ZONA: record.extrasPiazzaZona ? ZONA_REVERSE[record.extrasPiazzaZona] ?? "" : "",
+});
 
-  await appendSheetRow(REGISTROS_TAB, row);
+// Escribe en "DHL CONSEGNAS" el registro recien creado desde la app (Extras Piazza o
+// DHL/AB Service - la pestana ya mezcla los 3 tipos, ver SPEDIZZIONE_MAP).
+export const appendRecordToAppsheet = async (record) => {
+  await appendSheetRow(REGISTROS_TAB, buildAppsheetRow(record));
+};
+
+// Corrige la fila de un registro ya sincronizado cuando se edita desde la app -
+// mismas columnas que appendRecordToAppsheet, pero sobre la fila existente (ver
+// updateSheetRow: no pisa columnas ajenas a este mapeo). Un registro que nunca se
+// pudo escribir en la hoja (ver el catch en record.service.js) no tiene
+// origenExternoId - no hay fila que corregir.
+export const updateRecordInAppsheet = async (record) => {
+  if (!record.origenExternoId?.startsWith(ORIGEN_PREFIX)) return;
+  const sheetId = record.origenExternoId.slice(ORIGEN_PREFIX.length);
+  const rowNumber = await findRowNumberByColumnValue(REGISTROS_TAB, "ID", sheetId);
+  if (rowNumber === null) return;
+  await updateSheetRow(REGISTROS_TAB, rowNumber, buildAppsheetRow(record));
 };
 
 // Borra de "DHL CONSEGNAS" la fila de un registro eliminado desde la app. origenExternoId

@@ -13,7 +13,11 @@ import { purgeFilesForRecord } from "./recordFile.service.js";
 import { geocodeStops } from "./geocoding.service.js";
 import { calculateRoute } from "./routing.service.js";
 import { LOCATION_FRESH_MINUTES } from "./user.service.js";
-import { appendRecordToAppsheet, deleteRecordFromAppsheet } from "./appsheetWriteback.service.js";
+import {
+  appendRecordToAppsheet,
+  deleteRecordFromAppsheet,
+  updateRecordInAppsheet,
+} from "./appsheetWriteback.service.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { ORIGEN_PREFIX } from "../constants/appsheetMaps.js";
 import { AppError } from "../utils/AppError.js";
@@ -347,6 +351,16 @@ export const updateRecordForActor = async (actor, id, data) => {
   }
 
   const updated = await updateRecordById(id, payload);
+
+  // Best-effort, igual que appendRecordToAppsheet/deleteRecordFromAppsheet: si falla
+  // (permisos, red, cuota), el registro ya se actualizo en la app igual, no se corta
+  // el flujo por esto.
+  try {
+    await updateRecordInAppsheet(updated);
+  } catch (err) {
+    console.error("No se pudo actualizar el registro en la hoja de AppSheet:", err.message);
+  }
+
   return toResponse(updated, actor);
 };
 
