@@ -37,6 +37,8 @@ export const updateUserSchema = z
     compartirUbicacion: z.boolean().optional(),
     vehiculoAsignadoId: z.string().uuid("Vehiculo invalido").nullable().optional(),
     reperibilidadNoDisponible: z.boolean().optional(),
+    proximoServicioFecha: z.coerce.date().nullable().optional(),
+    proximoServicioNota: z.string().trim().max(500).nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Debe enviar al menos un campo para actualizar",

@@ -86,6 +86,13 @@ model User {
   // cada chofer (ver "Reperibilita" en Resumen), sin tener que cruzar dos listas.
   vehiculoAsignadoId   String?
   vehiculoAsignado     Vehiculo? @relation(fields: [vehiculoAsignadoId], references: [id])
+  // Nota manual de un servicio futuro para este chofer (cualquier area) - lo carga
+  // OWNER/ADMIN desde "Agregar chofer" en Resumen > Reperibilita, para avisar al equipo
+  // antes de que exista un Registro formal (cliente/destino) para esa fecha. Un solo
+  // plan activo por chofer, se pisa si se carga uno nuevo; se limpia a mano con
+  // "Quitar" una vez que ya no aplica.
+  proximoServicioFecha DateTime? @db.Date
+  proximoServicioNota  String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

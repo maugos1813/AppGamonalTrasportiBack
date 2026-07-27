@@ -141,8 +141,8 @@ const buildVehicleCodeMap = async () => {
 // Conocidos de antemano por typos/apodos en la planilla que no matchean 1:1 con el
 // nombre guardado en el sistema (ver mismo patron usado en los imports de CSV).
 const DRIVER_NAME_OVERRIDES = {
-  "mauro agostinelllli": "mauro fabian agostinelli",
-  "mauro agostinellli": "mauro fabian agostinelli",
+  "mauro agostinelllli": "mauro agostinelli",
+  "mauro agostinellli": "mauro agostinelli",
 };
 
 // dryRun: no crea nada (ni clientes ni registros) - solo devuelve que HARIA el sync.

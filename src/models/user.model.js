@@ -19,6 +19,8 @@ export const SAFE_USER_SELECT = {
   reperibilidadActualizada: true,
   vehiculoAsignadoId: true,
   vehiculoAsignado: { select: { id: true, targa: true, modelo: true } },
+  proximoServicioFecha: true,
+  proximoServicioNota: true,
   createdAt: true,
   updatedAt: true,
 };
