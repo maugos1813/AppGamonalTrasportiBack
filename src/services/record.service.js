@@ -5,6 +5,7 @@ import {
   findRecords,
   findRecordsPending,
   findRecordsSummary,
+  findRecordsWithSyncFailure,
   searchRecords,
   updateRecordById,
 } from "../models/record.model.js";
@@ -168,6 +169,7 @@ const toFullResponse = (record) => {
     costoCombustible: record.costoCombustible,
     clienteConfirmado: record.clienteConfirmado,
     total,
+    appsheetSyncFallido: record.appsheetSyncFallido,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -203,6 +205,7 @@ const toChoferResponse = (record) => ({
   comentarios: record.comentarios,
   kilometros: record.kilometros,
   kilometrosReales: record.kilometrosReales,
+  appsheetSyncFallido: record.appsheetSyncFallido,
   createdAt: record.createdAt,
   updatedAt: record.updatedAt,
 });
@@ -226,7 +229,7 @@ export const createRecord = async (data, { skipActiveCheck = false, actor = null
   const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
     await buildStopsPipeline(direcciones);
 
-  const record = await createRecordModel({
+  let record = await createRecordModel({
     ...rest,
     destinazione,
     rutaDistanciaKm,
@@ -241,13 +244,19 @@ export const createRecord = async (data, { skipActiveCheck = false, actor = null
   // Solo para registros nuevos creados desde la app (el sync ya manda origenExternoId
   // seteado, escribirlo de vuelta a la hoja seria redundante - ver appsheetSync.service.js).
   // Best-effort: si falla la escritura en Sheets (permisos, red, cuota), el registro en
-  // la app ya quedo creado igual, no se corta el flujo del usuario por eso.
+  // la app ya quedo creado igual, no se corta el flujo del usuario por eso - pero se deja
+  // appsheetSyncFallido=true marcado en el registro para que la UI avise (ver
+  // computeAppsheetSyncAlerts) en vez de perderse en silencio como antes.
   if (!data.origenExternoId) {
     try {
       await appendRecordToAppsheet(record);
-      await updateRecordById(record.id, { origenExternoId: `${ORIGEN_PREFIX}${record.id}` });
+      record = await updateRecordById(record.id, {
+        origenExternoId: `${ORIGEN_PREFIX}${record.id}`,
+        appsheetSyncFallido: false,
+      });
     } catch (err) {
       console.error("No se pudo escribir el registro en la hoja de AppSheet:", err.message);
+      record = await updateRecordById(record.id, { appsheetSyncFallido: true }).catch(() => record);
     }
   }
 
@@ -274,6 +283,15 @@ export const listPendingRecordsForActor = async (actor) => {
   const { gte, lt } = buildDateRange(year, month, day);
   const spedizzioneFilter = spedizzioneFilterForActor(actor);
   const records = await findRecordsPending({ driverId, gte, lt, spedizzioneFilter });
+  return records.map((record) => toResponse(record, actor));
+};
+
+// Para la campanita OWNER/ADMIN (ver computeAppsheetSyncAlerts en el frontend) - sin
+// esto, un registro cuya escritura a AppSheet fallo quedaba en silencio hasta que
+// alguien lo notara a mano comparando contra la planilla.
+export const listAppsheetSyncFailuresForActor = async (actor) => {
+  const spedizzioneFilter = spedizzioneFilterForActor(actor);
+  const records = await findRecordsWithSyncFailure(spedizzioneFilter);
   return records.map((record) => toResponse(record, actor));
 };
 
@@ -350,15 +368,30 @@ export const updateRecordForActor = async (actor, id, data) => {
     );
   }
 
-  const updated = await updateRecordById(id, payload);
+  let updated = await updateRecordById(id, payload);
 
   // Best-effort, igual que appendRecordToAppsheet/deleteRecordFromAppsheet: si falla
   // (permisos, red, cuota), el registro ya se actualizo en la app igual, no se corta
-  // el flujo por esto.
+  // el flujo por esto - pero queda marcado appsheetSyncFallido=true para que la UI
+  // avise. Si el registro nunca llego a tener origenExternoId porque la escritura
+  // original (alta) fallo, un simple updateRecordInAppsheet no alcanza (no hace nada
+  // sin origenExternoId, ver appsheetWriteback.service.js) - hay que reintentar el
+  // alta completa (appendRecordToAppsheet) en vez de la edicion. Si origenExternoId
+  // sigue null pero appsheetSyncFallido nunca se marco, es un registro que nunca
+  // debio sincronizar (historico cargado a mano) - no se toca.
   try {
-    await updateRecordInAppsheet(updated);
+    if (updated.origenExternoId) {
+      await updateRecordInAppsheet(updated);
+    } else if (updated.appsheetSyncFallido) {
+      await appendRecordToAppsheet(updated);
+      updated = await updateRecordById(id, { origenExternoId: `${ORIGEN_PREFIX}${id}` });
+    }
+    if (updated.appsheetSyncFallido) {
+      updated = await updateRecordById(id, { appsheetSyncFallido: false });
+    }
   } catch (err) {
     console.error("No se pudo actualizar el registro en la hoja de AppSheet:", err.message);
+    updated = await updateRecordById(id, { appsheetSyncFallido: true }).catch(() => updated);
   }
 
   return toResponse(updated, actor);

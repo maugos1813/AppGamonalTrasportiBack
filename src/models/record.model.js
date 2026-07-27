@@ -37,6 +37,7 @@ const RECORD_SELECT_LIST = {
   spedizzione: true,
   extrasPiazzaZona: true,
   origenExternoId: true,
+  appsheetSyncFallido: true,
   rutaDistanciaKm: true,
   rutaDuracionMin: true,
   rutaCalculadaAt: true,
@@ -111,6 +112,16 @@ export const findRecords = ({ driverId, dateRange, spedizzioneFilter } = {}) =>
     },
     select: RECORD_SELECT_LIST,
     orderBy: { fechaServicio: "desc" },
+  });
+
+// Registros cuyo ultimo intento de sincronizar con AppSheet fallo (ver
+// appsheetSyncFallido en record.service.js) - siempre son pocos, no hace falta acotar
+// por fecha como el resto de los listados.
+export const findRecordsWithSyncFailure = (spedizzioneFilter) =>
+  prisma.record.findMany({
+    where: { appsheetSyncFallido: true, ...(spedizzioneFilter ?? {}) },
+    select: RECORD_SELECT_LIST,
+    orderBy: { updatedAt: "desc" },
   });
 
 // Busqueda liviana por codigo/cliente/chofer/destino, con limite - pensada para tipear

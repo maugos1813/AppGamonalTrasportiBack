@@ -10,6 +10,7 @@ import {
   ORIGEN_PREFIX,
   REGISTROS_TAB,
   SPEDIZZIONE_REVERSE,
+  toRomeParts,
   ZONA_REVERSE,
 } from "../constants/appsheetMaps.js";
 
@@ -30,13 +31,16 @@ const toSheetDate = (value) => {
 // planilla), nunca solo la hora: una celda con solo "hh:mm" pierde el dia y ademas
 // Sheets la guarda como un serial de tiempo puro (epoch 30/12/1899), que AppSheet
 // termina mostrando como "30/12/1899 hh:mm" si la columna espera fecha+hora.
+// A diferencia de toSheetDate (fecha sola, UTC "a secas"), ETA si lleva hora real:
+// se convierte a hora de pared de Italia (ver toRomeParts en appsheetMaps.js), sin
+// eso la planilla mostraba la hora UTC cruda en vez de la que cargo el chofer/admin.
 const toSheetDateTime = (value) => {
-  const d = new Date(value);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mi = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${dd}/${mm}/${d.getUTCFullYear()} ${hh}:${mi}:00`;
+  const { year, month, day, hour, minute } = toRomeParts(value);
+  const dd = String(day).padStart(2, "0");
+  const mm = String(month).padStart(2, "0");
+  const hh = String(hour).padStart(2, "0");
+  const mi = String(minute).padStart(2, "0");
+  return `${dd}/${mm}/${year} ${hh}:${mi}:00`;
 };
 
 // Mapeo inverso exacto del que lee appsheetSync.service.js, compartido entre alta

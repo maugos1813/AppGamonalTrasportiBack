@@ -8,6 +8,7 @@ import {
   listByMonth,
   listPending,
   listSummaryByMonth,
+  listSyncFailures,
   listByYear,
   remove,
   search,
@@ -38,6 +39,7 @@ router.get("/", list);
 // igual deben registrarse antes de "/:id" (mas abajo) para no chocar con el UUID.
 router.get("/pending", listPending);
 router.get("/search", search);
+router.get("/sync-fallidos", authorize("OWNER", "ADMIN"), listSyncFailures);
 
 // Rutas con constraint numerico: deben registrarse antes de "/:id" para no chocar con el UUID.
 router.get(

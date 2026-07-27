@@ -250,6 +250,12 @@ model Record {
   // Clave del sistema origen (ej. fila de una hoja de calculo sincronizada), para
   // poder re-sincronizar sin crear duplicados. Null en servicios cargados a mano.
   origenExternoId String? @unique
+  // true si el ultimo intento de escritura/actualizacion en AppSheet (best-effort,
+  // ver appsheetWriteback.service.js) fallo. Separado de origenExternoId==null porque
+  // ese null tambien es el estado normal de servicios historicos que nunca debieron
+  // sincronizar (cargados a mano antes de que existiera el sync) - este flag solo se
+  // toca cuando de verdad se INTENTO escribir en la hoja y no se pudo.
+  appsheetSyncFallido Boolean @default(false)
 
   // Ruta calculada (deposito fijo -> paradas en orden), cacheada para no recalcular
   // en cada lectura. Null si todavia no se calculo o si el servicio de ruteo fallo.

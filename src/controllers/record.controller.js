@@ -3,6 +3,7 @@ import {
   deleteRecord,
   getLiveEtaForRecord,
   getRecordByIdForActor,
+  listAppsheetSyncFailuresForActor,
   listPendingRecordsForActor,
   listRecordsForActor,
   listRecordsSummaryForActor,
@@ -39,6 +40,12 @@ export const listPending = asyncHandler(async (req, res) => {
 // Buscador de Registros (codigo/cliente/chofer/destino), con limite de resultados.
 export const search = asyncHandler(async (req, res) => {
   const records = await searchRecordsForActor(req.user, req.query.q);
+  res.status(200).json({ success: true, data: { records } });
+});
+
+// Campanita OWNER/ADMIN: registros que no se pudieron sincronizar con AppSheet.
+export const listSyncFailures = asyncHandler(async (req, res) => {
+  const records = await listAppsheetSyncFailuresForActor(req.user);
   res.status(200).json({ success: true, data: { records } });
 });
 

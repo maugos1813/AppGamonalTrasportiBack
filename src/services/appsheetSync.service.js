@@ -5,7 +5,14 @@ import { findVehicles } from "../models/vehicle.model.js";
 import { findClients, createClient } from "../models/client.model.js";
 import { findAllCodigos, findRecordByOrigenExternoId, findRecordDedupSignatures } from "../models/record.model.js";
 import { createRecord } from "./record.service.js";
-import { ESTADO_MAP, ORIGEN_PREFIX, REGISTROS_TAB, SPEDIZZIONE_MAP, ZONA_MAP } from "../constants/appsheetMaps.js";
+import {
+  ESTADO_MAP,
+  fromRomeParts,
+  ORIGEN_PREFIX,
+  REGISTROS_TAB,
+  SPEDIZZIONE_MAP,
+  ZONA_MAP,
+} from "../constants/appsheetMaps.js";
 
 const SOURCE = "appsheet_registros";
 
@@ -36,23 +43,27 @@ const GENERIC_VEHICLE_TARGA = "NOLEGGIO/OTRO";
 
 // dd/mm/yyyy [h:mm[:ss]] -> Date. Acepta fecha sola o fecha+hora separadas (la
 // planilla cruda a veces trae ETA como solo hora en una columna aparte).
+// Sin timeRaw (o sin hora real en el match) se arma con Date.UTC "a secas", igual que
+// siempre: DATA/fechaServicio no llevan hora real, y toSheetDate espera ese mismo
+// criterio para el round-trip (ver appsheetWriteback.service.js) - un desfasaje de
+// huso horario ahi no cambia el dia en la practica. Cuando SI hay una hora real
+// (timeRaw viene de la columna ETA, ver parseEtaCell), esa hora es de pared en Italia
+// y hay que convertirla al instante UTC correcto (ver fromRomeParts) - si no, un
+// "15:00" cargado en la planilla se guardaba como 15:00 UTC (2 horas mas tarde de lo
+// real en verano).
 const parseSheetDate = (dateRaw, timeRaw) => {
   if (!dateRaw) return null;
   const dateMatch = dateRaw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!dateMatch) return null;
   const [, d, mo, y] = dateMatch;
 
-  let h = 0;
-  let mi = 0;
-  if (timeRaw) {
-    const timeMatch = timeRaw.trim().match(/^(\d{1,2}):(\d{2})/);
-    if (timeMatch) {
-      h = Number(timeMatch[1]);
-      mi = Number(timeMatch[2]);
-    }
+  const timeMatch = timeRaw?.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    const date = fromRomeParts(Number(y), Number(mo), Number(d), Number(timeMatch[1]), Number(timeMatch[2]));
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), h, mi));
+  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), 0, 0));
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -71,7 +82,7 @@ const parseEtaCell = (etaRaw, dataRaw) => {
   const fullMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
   if (fullMatch) {
     const [, d, mo, y, h, mi] = fullMatch;
-    const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi)));
+    const date = fromRomeParts(Number(y), Number(mo), Number(d), Number(h), Number(mi));
     return Number.isNaN(date.getTime()) ? null : date;
   }
 

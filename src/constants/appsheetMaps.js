@@ -73,3 +73,68 @@ export const getMesLabel = (value) => {
   const mes = new Date(value).getUTCMonth() + 1;
   return `${mes}. ${MESES_ES[mes - 1]}`;
 };
+
+// --- Conversion de horario para la columna ETA (hora de pared en Italia) -----------
+//
+// La planilla la maneja gente en Italia y siempre muestra/carga la hora "de pared"
+// (Europe/Rome, CET/CEST segun la epoca del anio). La base guarda todo en UTC. DATA
+// (solo fecha, sin hora) y fechaServicio ya son simetricos usando UTC "a secas" en
+// toSheetDate/parseSheetDate (sin horario, un desfasaje de huso no cambia el dia en
+// la practica) - no se tocan aca. Pero ETA SI lleva hora real, y ahi un desfasaje de
+// horario si importa: sin esto, "15:00" cargado en la app (que la app interpreta bien
+// como hora de Italia) se escribia en la planilla usando la hora UTC cruda (13:00),
+// y a la inversa al leer. No se asume que el proceso de Node corre en zona horaria de
+// Italia (podria no ser asi en produccion) - se usa Intl.DateTimeFormat para resolver
+// el offset real (CET/CEST) de la fecha en cuestion, sea cual sea el TZ del proceso.
+const SHEET_TIMEZONE = "Europe/Rome";
+
+const romeOffsetMinutesForUtc = (utcDate) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: SHEET_TIMEZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(utcDate)
+      .map((p) => [p.type, p.value])
+  );
+  const asIfUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour === "24" ? "0" : parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return Math.round((asIfUtc - utcDate.getTime()) / 60000);
+};
+
+// Instante UTC (Date o string ISO) -> componentes de hora de pared en Italia, para
+// escribir la columna ETA de la planilla.
+export const toRomeParts = (value) => {
+  const d = new Date(value);
+  const offsetMin = romeOffsetMinutesForUtc(d);
+  const shifted = new Date(d.getTime() + offsetMin * 60000);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+  };
+};
+
+// Componentes de hora de pared en Italia (los que trae la columna ETA de la planilla)
+// -> Date en el instante UTC correcto, para guardar en la base. Un solo ajuste
+// alcanza salvo parado justo en la hora exacta del cambio de horario (2 veces al
+// anio) - caso extremo que no vale la pena resolver con mas precision aca.
+export const fromRomeParts = (year, month, day, hour = 0, minute = 0) => {
+  const guessUtcMs = Date.UTC(year, month - 1, day, hour, minute);
+  const offsetMin = romeOffsetMinutesForUtc(new Date(guessUtcMs));
+  return new Date(guessUtcMs - offsetMin * 60000);
+};
