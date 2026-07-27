@@ -22,7 +22,7 @@ import {
 import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { ORIGEN_PREFIX } from "../constants/appsheetMaps.js";
 import { AppError } from "../utils/AppError.js";
-import { buildDateRange } from "../utils/dateRange.js";
+import { buildLocalDateRange } from "../utils/dateRange.js";
 
 const isPrivileged = (actor) => actor.cargo === "OWNER" || actor.cargo === "ADMIN";
 
@@ -31,13 +31,15 @@ const isPrivileged = (actor) => actor.cargo === "OWNER" || actor.cargo === "ADMI
 // cargada se tratan como EXTRA_PIAZZA (mismo criterio que SECTIONS.matchesSpedizzione
 // en el frontend), por eso el OR con null. Un area sin mapeo (ej. FARMACIA, que hoy no
 // tiene registros propios) no matchea nada: deny-by-default en vez de ver todo.
+// EXTRAS_STEFANIA no tiene area propia - lo administra el mismo ADMIN de DHL, por eso
+// se agrega a la key DHL en vez de crear una nueva.
 const AREA_SPEDIZZIONE_WHERE = {
   EXTRAS_PIAZZA: { OR: [{ spedizzione: "EXTRA_PIAZZA" }, { spedizzione: null }] },
-  DHL: { spedizzione: { in: ["DHL", "AB_SERVICE"] } },
+  DHL: { spedizzione: { in: ["DHL", "AB_SERVICE", "EXTRAS_STEFANIA"] } },
 };
 const AREA_SPEDIZZIONES = {
   EXTRAS_PIAZZA: ["EXTRA_PIAZZA", null],
-  DHL: ["DHL", "AB_SERVICE"],
+  DHL: ["DHL", "AB_SERVICE", "EXTRAS_STEFANIA"],
 };
 
 const spedizzioneFilterForActor = (actor) =>
@@ -280,7 +282,7 @@ export const listPendingRecordsForActor = async (actor) => {
     .toLocaleDateString("en-CA", { timeZone: "Europe/Rome" })
     .split("-")
     .map(Number);
-  const { gte, lt } = buildDateRange(year, month, day);
+  const { gte, lt } = buildLocalDateRange(year, month, day, "Europe/Rome");
   const spedizzioneFilter = spedizzioneFilterForActor(actor);
   const records = await findRecordsPending({ driverId, gte, lt, spedizzioneFilter });
   return records.map((record) => toResponse(record, actor));

@@ -198,6 +198,7 @@ enum Spedizzione {
   DHL
   AB_SERVICE
   EXTRA_PIAZZA
+  EXTRAS_STEFANIA
 }
 
 // Sub-clasificacion de los servicios Extra Piazza (Milano vs Roma), para poder

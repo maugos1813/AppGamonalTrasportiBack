@@ -269,6 +269,7 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       // de la planilla como medianoche UTC directo - un slice UTC crudo los desalineaba
       // por un dia y la firma nunca matcheaba, duplicando cientos de registros ya cargados.
       const kilometros = parseNumber(row[idx["KM DESTINO"]]);
+      const kilometrosReales = parseNumber(row[idx["KM REAL"]]);
       const dedupKey = `${driverId}|${fechaServicio.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" })}|${kilometros}`;
       if (dedupSignatures.has(dedupKey)) {
         skipped += 1;
@@ -305,11 +306,20 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
         stop = extrasPiazzaZona === "ROMA" ? "Roma, Italia" : "Milano, Italia";
       }
 
-      // REGISTROS_TAB ("DHL CONSEGNAS") mezcla los 3 tipos de servicio (DHL, AB SERVICE,
-      // EXTRA PIAZZA) en la misma columna SPEDIZZIONE - no asumir un default aca, un valor
-      // que no matchea el mapa queda sin clasificar (revisar a mano) en vez de adivinar.
+      // REGISTROS_TAB ("DHL CONSEGNAS") mezcla los servicios de las 4 lineas de negocio
+      // (DHL, AB SERVICE, EXTRA PIAZZA, EXTRAS STEFANIA) en la misma columna SPEDIZZIONE.
+      // Una celda vacia es un caso legitimo e historico (registros viejos, se tratan como
+      // EXTRA_PIAZZA/null, ver AREA_SPEDIZZIONE_WHERE) - pero un valor NO vacio que no
+      // matchea el mapa es casi siempre un typo o una etiqueta nueva sin mapear todavia
+      // (paso con "EXTRAS STEFANIA" antes de agregarse a SPEDIZZIONE_MAP, quedo contado
+      // en silencio como Extras Piazza durante meses) - se flaguea como error de fila en
+      // vez de adivinar, mismo criterio que estado/chofer/vehiculo mas abajo.
       const spedizzioneRaw = (row[idx["SPEDIZZIONE"]] ?? "").trim().toUpperCase();
       const spedizzione = SPEDIZZIONE_MAP[spedizzioneRaw];
+      if (spedizzioneRaw && !spedizzione) {
+        errors.push({ row: rowNumber, id: originId, reason: `spedizzione no reconocida: "${spedizzioneRaw}"` });
+        continue;
+      }
 
       const descripcion = (row[idx["DATOS CONSEGNA"]] ?? "").trim() || `${clienteRaw.trim()} - ${ciudad}`;
 
@@ -343,6 +353,7 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
         spedizzione,
         extrasPiazzaZona,
         kilometros: kilometros ?? undefined,
+        kilometrosReales: kilometrosReales ?? undefined,
         areaC: parseNumber(row[idx["AREA C"]]) ?? undefined,
         costoEspera: parseNumber(row[idx["PRECIO ATTESA"]]) ?? undefined,
         pagoRecibido: parseNumber(row[idx["MONTO"]]) ?? undefined,

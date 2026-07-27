@@ -10,7 +10,7 @@ const RECORD_STATUS_VALUES = [
 ];
 
 const APLICATIVO_VALUES = Array.from({ length: 18 }, (_, i) => `MILANO_${i + 1}`);
-const SPEDIZZIONE_VALUES = ["DHL", "AB_SERVICE", "EXTRA_PIAZZA"];
+const SPEDIZZIONE_VALUES = ["DHL", "AB_SERVICE", "EXTRA_PIAZZA", "EXTRAS_STEFANIA"];
 const EXTRAS_PIAZZA_ZONA_VALUES = ["MILANO", "ROMA"];
 
 const economicFields = {

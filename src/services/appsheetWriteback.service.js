@@ -57,6 +57,7 @@ const buildAppsheetRow = (record) => ({
   AUTISTA: record.driver ? `${record.driver.nombre} ${record.driver.apellido}` : "",
   TARGA: record.vehicle?.targa ?? "",
   "KM DESTINO": record.kilometros ?? "",
+  "KM REAL": record.kilometrosReales ?? "",
   CLIENTE: record.client?.nombre ?? "",
   ETA: toSheetDateTime(record.eta),
   CIUDAD: record.ciudad ?? "",

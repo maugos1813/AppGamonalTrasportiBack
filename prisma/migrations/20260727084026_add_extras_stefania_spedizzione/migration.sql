@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "Spedizzione" ADD VALUE 'EXTRAS_STEFANIA';

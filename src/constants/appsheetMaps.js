@@ -27,6 +27,8 @@ export const SPEDIZZIONE_MAP = {
   AB_SERVICE: "AB_SERVICE",
   "EXTRA PIAZZA": "EXTRA_PIAZZA",
   EXTRA_PIAZZA: "EXTRA_PIAZZA",
+  "EXTRAS STEFANIA": "EXTRAS_STEFANIA",
+  EXTRAS_STEFANIA: "EXTRAS_STEFANIA",
 };
 
 // Columna "ZONA" (a agregar en la planilla, hoy no existe) - solo aplica a filas
