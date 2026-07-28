@@ -289,7 +289,17 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       const extrasPiazzaZona = ZONA_MAP[zonaRaw];
 
       const ciudad = (row[idx["CIUDAD"]] ?? "").trim();
-      const calle = (row[idx["DESTINAZIONE"]] ?? "").trim();
+      const calleRaw = (row[idx["DESTINAZIONE"]] ?? "").trim();
+      // A veces DESTINAZIONE trae el nombre de la ciudad pegado al final sin coma
+      // (ej "via della corradina 1 ferrera" + CIUDAD "FERRERA ERGOGNONE") - la
+      // ciudad mencionada 2 veces en la misma direccion confunde al geocoder de
+      // Google (ZERO_RESULTS) aunque cada parte por separado resuelva bien. Se saca
+      // esa repeticion antes de combinar, no se toca si no aplica.
+      const cityFirstWord = ciudad.split(/\s+/)[0]?.toLowerCase();
+      const calle =
+        cityFirstWord && calleRaw.toLowerCase().endsWith(` ${cityFirstWord}`)
+          ? calleRaw.slice(0, calleRaw.length - cityFirstWord.length).trim()
+          : calleRaw;
       let stop = calle ? (ciudad ? `${calle}, ${ciudad}` : calle) : ciudad;
       if (!stop) {
         errors.push({ row: rowNumber, id: originId, reason: "sin direccion (CIUDAD/DESTINAZIONE vacios)" });

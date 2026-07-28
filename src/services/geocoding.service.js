@@ -9,7 +9,12 @@ const buildQueryKey = (direccion) => direccion.trim().toLowerCase();
 // Google); el resto son definitivos para esta direccion.
 const NO_RESULT_STATUSES = new Set(["ZERO_RESULTS", "INVALID_REQUEST"]);
 
-const fetchFromGoogle = async (direccion) => {
+// fallbackAddress: si direccion no da resultado (ZERO_RESULTS/INVALID_REQUEST), se
+// reintenta una vez con esta (pensado para la ciudad del registro) en vez de fallar
+// del todo - pedido explicito del OWNER: prefiere una ubicacion aproximada (centro
+// de la ciudad) a perder el servicio entero por una direccion mal cargada. No aplica
+// a errores transitorios de Google (cuota, etc.), esos siguen fallando igual que antes.
+const fetchFromGoogle = async (direccion, fallbackAddress) => {
   const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
   url.searchParams.set("address", direccion);
   // Sesga (no filtra de forma estricta) resultados ambiguos hacia Italia, donde
@@ -40,6 +45,10 @@ const fetchFromGoogle = async (direccion) => {
   );
 
   if (NO_RESULT_STATUSES.has(data.status)) {
+    if (fallbackAddress && buildQueryKey(fallbackAddress) !== buildQueryKey(direccion)) {
+      console.warn(`[geocoding] Sin resultado para "${direccion}", aproximando con "${fallbackAddress}"`);
+      return fetchFromGoogle(fallbackAddress);
+    }
     throw new AppError(`No se pudo geocodificar la direccion: "${direccion}"`, 422);
   }
 
@@ -51,14 +60,17 @@ const fetchFromGoogle = async (direccion) => {
   );
 };
 
-export const geocodeAddress = async (direccion) => {
+export const geocodeAddress = async (direccion, fallbackAddress) => {
   const queryKey = buildQueryKey(direccion);
 
   const cached = await prisma.geocodeCache.findUnique({ where: { queryKey } });
   if (cached) return { lat: cached.lat, lng: cached.lng };
 
-  const { lat, lng, raw } = await fetchFromGoogle(direccion);
+  const { lat, lng, raw } = await fetchFromGoogle(direccion, fallbackAddress);
 
+  // Se cachea bajo la queryKey de la direccion ORIGINAL (no la del fallback): la
+  // proxima vez que aparezca esta misma direccion mal cargada, devuelve directo la
+  // aproximacion cacheada en vez de volver a pegarle a Google.
   await prisma.geocodeCache.upsert({
     where: { queryKey },
     update: { lat, lng, raw, direccion },
@@ -68,12 +80,14 @@ export const geocodeAddress = async (direccion) => {
   return { lat, lng };
 };
 
-// Geocodifica en orden secuencial (respeta el orden de las paradas). Un fallo en
-// cualquier direccion interrumpe y propaga el error: es un dato mal cargado por el OWNER.
-export const geocodeStops = async (direcciones) => {
+// Geocodifica en orden secuencial (respeta el orden de las paradas). fallbackAddress
+// (la ciudad del registro) se intenta para cualquier parada que no de resultado, ver
+// fetchFromGoogle - si tampoco esa resuelve, recien ahi se interrumpe y propaga el
+// error (dato mal cargado que no se puede aproximar ni a nivel ciudad).
+export const geocodeStops = async (direcciones, fallbackAddress) => {
   const stops = [];
   for (const direccion of direcciones) {
-    const { lat, lng } = await geocodeAddress(direccion);
+    const { lat, lng } = await geocodeAddress(direccion, fallbackAddress);
     stops.push({ direccion, lat, lng });
   }
   return stops;

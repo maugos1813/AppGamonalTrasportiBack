@@ -73,9 +73,11 @@ const SELF_EDITABLE_FIELDS = [
 ];
 
 // Geocodifica las paradas (en orden) y calcula la ruta deposito -> paradas. Devuelve
-// el payload listo para mezclar en la data que se manda a Prisma.
-const buildStopsPipeline = async (direcciones) => {
-  const stopsGeocoded = await geocodeStops(direcciones);
+// el payload listo para mezclar en la data que se manda a Prisma. fallbackCiudad: si
+// una parada no geocodifica, geocodeStops la aproxima al centro de esa ciudad en vez
+// de fallar el registro entero (ver geocoding.service.js).
+const buildStopsPipeline = async (direcciones, fallbackCiudad) => {
+  const stopsGeocoded = await geocodeStops(direcciones, fallbackCiudad);
   const ruta = await calculateRoute([DEPOT_ORIGIN, ...stopsGeocoded]);
 
   return {
@@ -229,7 +231,7 @@ export const createRecord = async (data, { skipActiveCheck = false, actor = null
 
   const { stops: direcciones, ...rest } = data;
   const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
-    await buildStopsPipeline(direcciones);
+    await buildStopsPipeline(direcciones, data.ciudad);
 
   let record = await createRecordModel({
     ...rest,
@@ -352,7 +354,7 @@ export const updateRecordForActor = async (actor, id, data) => {
         payload = rest;
       } else {
         const { stopsCreate, destinazione, rutaDistanciaKm, rutaDuracionMin, rutaGeometria, rutaCalculadaAt } =
-          await buildStopsPipeline(direcciones);
+          await buildStopsPipeline(direcciones, payload.ciudad ?? record.ciudad);
         payload = {
           ...rest,
           destinazione,
