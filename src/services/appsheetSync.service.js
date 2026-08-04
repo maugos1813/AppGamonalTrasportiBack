@@ -312,7 +312,13 @@ export const runAppsheetRegistrosSync = async ({ dryRun = false, fromDate, toDat
       // centro de la zona (ZONA Milano/Roma si vino cargada, si no Milano - sede del
       // deposito, ver DEPOT_ORIGIN) para poder geocodificar igual; es una aproximacion
       // razonable ya que el km facturado sale de KM DESTINO, no de esta ruta calculada.
-      if (stop.trim().toUpperCase() === "VARIOS") {
+      // Se chequea DESTINAZIONE/CIUDAD por separado (no solo el "stop" combinado): si
+      // solo uno de los dos trae "VARIOS" (ej. DESTINAZIONE="VARIOS" + CIUDAD real), el
+      // combinado ("VARIOS, Milano") no matcheaba el string exacto y se colaba a Google
+      // igual (fila 6328 - CIUDAD real vale "VARIOS" tambien en ese caso puntual).
+      const calleIsVarios = calleRaw.trim().toUpperCase() === "VARIOS";
+      const ciudadIsVarios = ciudad.trim().toUpperCase() === "VARIOS";
+      if (calleIsVarios || ciudadIsVarios) {
         stop = extrasPiazzaZona === "ROMA" ? "Roma, Italia" : "Milano, Italia";
       }
 

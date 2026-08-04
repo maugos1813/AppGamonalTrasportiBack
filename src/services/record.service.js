@@ -115,7 +115,8 @@ const computeTotals = (record) => {
     (record.costoTraforoFrejusBrennero ?? 0) +
     (record.peajes ?? 0) +
     (record.vignetta ?? 0) +
-    (record.costoHotel ?? 0);
+    (record.costoHotel ?? 0) +
+    (record.costoOtros ?? 0);
 
   return { totalKm, total };
 };
@@ -169,6 +170,7 @@ const toFullResponse = (record) => {
     peajes: record.peajes,
     vignetta: record.vignetta,
     costoHotel: record.costoHotel,
+    costoOtros: record.costoOtros,
     pagoRecibido: record.pagoRecibido,
     costoCombustible: record.costoCombustible,
     clienteConfirmado: record.clienteConfirmado,

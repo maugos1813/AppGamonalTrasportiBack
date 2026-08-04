@@ -289,6 +289,9 @@ model Record {
   peajes                     Float?
   vignetta                   Float?
   costoHotel                 Float?
+  // Costos varios sin una columna propia (viaticos, etc.) - entra en el total sin
+  // combustible igual que el resto de los costos operativos, ver computeTotals.
+  costoOtros                 Float?
   pagoRecibido               Float?
   costoCombustible           Float?
   clienteConfirmado          Boolean @default(false)

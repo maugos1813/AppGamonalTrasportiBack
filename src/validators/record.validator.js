@@ -22,6 +22,7 @@ const economicFields = {
   peajes: z.coerce.number().optional(),
   vignetta: z.coerce.number().optional(),
   costoHotel: z.coerce.number().optional(),
+  costoOtros: z.coerce.number().optional(),
   pagoRecibido: z.coerce.number().optional(),
   costoCombustible: z.coerce.number().optional(),
   clienteConfirmado: z.coerce.boolean().optional(),
