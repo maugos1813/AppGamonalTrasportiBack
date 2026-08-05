@@ -181,7 +181,15 @@ export const findRecordsSummary = ({ driverId, dateRange, spedizzioneFilter } = 
       ...(dateRange ? { fechaServicio: { gte: dateRange.gte, lt: dateRange.lt } } : {}),
       ...(spedizzioneFilter ?? {}),
     },
-    select: { id: true, fechaServicio: true, estado: true, spedizzione: true, kilometros: true, kilometrosReales: true },
+    select: {
+      id: true,
+      fechaServicio: true,
+      estado: true,
+      spedizzione: true,
+      extrasPiazzaZona: true,
+      kilometros: true,
+      kilometrosReales: true,
+    },
     orderBy: { fechaServicio: "desc" },
   });
 

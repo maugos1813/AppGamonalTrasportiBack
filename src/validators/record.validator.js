@@ -9,7 +9,13 @@ const RECORD_STATUS_VALUES = [
   "RISCHEDULATO",
 ];
 
-const APLICATIVO_VALUES = Array.from({ length: 18 }, (_, i) => `MILANO_${i + 1}`);
+// ROMA_1..10 se agrego junto a los MILANO_1..18 ya existentes (ver APLICATIVO_OPTIONS
+// en constants.js del front, mismo criterio: no renombrar el historico). Roma tiene
+// menos aplicativos que Milano (10, no 18) - circuitos reales de esa operacion.
+const APLICATIVO_VALUES = [
+  ...Array.from({ length: 18 }, (_, i) => `MILANO_${i + 1}`),
+  ...Array.from({ length: 10 }, (_, i) => `ROMA_${i + 1}`),
+];
 const SPEDIZZIONE_VALUES = ["DHL", "AB_SERVICE", "EXTRA_PIAZZA", "EXTRAS_STEFANIA"];
 const EXTRAS_PIAZZA_ZONA_VALUES = ["MILANO", "ROMA"];
 

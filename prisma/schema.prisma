@@ -197,6 +197,16 @@ enum Aplicativo {
   MILANO_16
   MILANO_17
   MILANO_18
+  ROMA_1
+  ROMA_2
+  ROMA_3
+  ROMA_4
+  ROMA_5
+  ROMA_6
+  ROMA_7
+  ROMA_8
+  ROMA_9
+  ROMA_10
 }
 
 // Categoria de despacho del servicio (de donde viene el pedido), independiente del
