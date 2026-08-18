@@ -104,16 +104,23 @@ const csvEnumList = (values) =>
 
 const HHMM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// "" no es lo mismo que ausente para .optional() (solo acepta undefined) - un campo
+// opcional vacio en un <input> del front (ej. un <input type="time"> tocado y despues
+// borrado) manda "" en vez de omitir el parametro, y sin esto eso tira 400 igual que si
+// el usuario hubiera cargado un dato invalido (mismo bug ya visto con "grupo" en
+// user.validator.js). Se trata "" como si no se hubiera mandado nada.
+const emptyToUndefined = (schema) => z.preprocess((v) => (v === "" ? undefined : v), schema.optional());
+
 // GET /records/export (ver ExportRecordsModal.jsx del front) - todos los filtros son
 // opcionales, sin ninguno exporta el historico completo.
 export const exportRecordsQuerySchema = z.object({
-  from: z.coerce.date().optional(),
-  to: z.coerce.date().optional(),
-  fromTime: z.string().regex(HHMM_REGEX, "Hora invalida (HH:mm)").optional(),
-  toTime: z.string().regex(HHMM_REGEX, "Hora invalida (HH:mm)").optional(),
-  driverId: z.string().uuid("driverId invalido").optional(),
-  clientId: z.string().uuid("clientId invalido").optional(),
-  vehicleId: z.string().uuid("vehicleId invalido").optional(),
+  from: emptyToUndefined(z.coerce.date()),
+  to: emptyToUndefined(z.coerce.date()),
+  fromTime: emptyToUndefined(z.string().regex(HHMM_REGEX, "Hora invalida (HH:mm)")),
+  toTime: emptyToUndefined(z.string().regex(HHMM_REGEX, "Hora invalida (HH:mm)")),
+  driverId: emptyToUndefined(z.string().uuid("driverId invalido")),
+  clientId: emptyToUndefined(z.string().uuid("clientId invalido")),
+  vehicleId: emptyToUndefined(z.string().uuid("vehicleId invalido")),
   secciones: csvEnumList(SPEDIZZIONE_VALUES),
   zonas: csvEnumList(EXTRAS_PIAZZA_ZONA_VALUES),
   estados: csvEnumList(RECORD_STATUS_VALUES),
