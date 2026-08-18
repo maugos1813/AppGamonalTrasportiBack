@@ -54,6 +54,7 @@ const RECORD_SELECT_LIST = {
   peajes: true,
   vignetta: true,
   costoHotel: true,
+  costoOtros: true,
   pagoRecibido: true,
   costoCombustible: true,
   clienteConfirmado: true,
@@ -112,6 +113,39 @@ export const findRecords = ({ driverId, dateRange, spedizzioneFilter } = {}) =>
     },
     select: RECORD_SELECT_LIST,
     orderBy: { fechaServicio: "desc" },
+  });
+
+// Export CSV de Registros (ver record.service.js): mismos filtros de dateRange/
+// spedizzioneFilter (scoping del actor) que findRecords, mas driverId/clientId/
+// vehicleId/seccionWhere/zonaValues/estadoValues puntuales que el usuario elige en el
+// modal de export. seccionWhere ya viene armado por el service (igual que
+// spedizzioneFilter/AREA_SPEDIZZIONE_WHERE) para poder representar "Extras Piazza"
+// como spedizzione IN ('EXTRA_PIAZZA') OR NULL sin depender de que Prisma soporte
+// null dentro de un "in". El filtro de hora del dia (fromTime/toTime) NO se resuelve
+// aca - se aplica despues en JS sobre este resultado (ver exportRecordsForActor).
+export const findRecordsForExport = ({
+  dateRange,
+  spedizzioneFilter,
+  driverId,
+  clientId,
+  vehicleId,
+  seccionWhere,
+  zonaValues,
+  estadoValues,
+} = {}) =>
+  prisma.record.findMany({
+    where: {
+      ...(dateRange ? { fechaServicio: { gte: dateRange.gte, lt: dateRange.lt } } : {}),
+      ...(spedizzioneFilter ?? {}),
+      ...(driverId ? { driverId } : {}),
+      ...(clientId ? { clientId } : {}),
+      ...(vehicleId ? { vehicleId } : {}),
+      ...(seccionWhere ?? {}),
+      ...(zonaValues?.length ? { extrasPiazzaZona: { in: zonaValues } } : {}),
+      ...(estadoValues?.length ? { estado: { in: estadoValues } } : {}),
+    },
+    select: RECORD_SELECT_LIST,
+    orderBy: { fechaServicio: "asc" },
   });
 
 // Registros cuyo ultimo intento de sincronizar con AppSheet fallo (ver

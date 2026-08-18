@@ -89,6 +89,36 @@ export const updateRecordSchema = z.object({
   ...economicFields,
 });
 
+// Listas separadas por coma en query string (?secciones=DHL,AB_SERVICE) - tambien
+// acepta el mismo param repetido (Express ya lo arma como array en ese caso).
+const csvEnumList = (values) =>
+  z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v) => {
+      if (v == null) return undefined;
+      const arr = Array.isArray(v) ? v : v.split(",");
+      return arr.map((s) => s.trim()).filter(Boolean);
+    })
+    .refine((arr) => !arr || arr.every((s) => values.includes(s)), { message: "Valor invalido en la lista" });
+
+const HHMM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// GET /records/export (ver ExportRecordsModal.jsx del front) - todos los filtros son
+// opcionales, sin ninguno exporta el historico completo.
+export const exportRecordsQuerySchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  fromTime: z.string().regex(HHMM_REGEX, "Hora invalida (HH:mm)").optional(),
+  toTime: z.string().regex(HHMM_REGEX, "Hora invalida (HH:mm)").optional(),
+  driverId: z.string().uuid("driverId invalido").optional(),
+  clientId: z.string().uuid("clientId invalido").optional(),
+  vehicleId: z.string().uuid("vehicleId invalido").optional(),
+  secciones: csvEnumList(SPEDIZZIONE_VALUES),
+  zonas: csvEnumList(EXTRAS_PIAZZA_ZONA_VALUES),
+  estados: csvEnumList(RECORD_STATUS_VALUES),
+});
+
 export const idParamSchema = z.object({
   id: z.string().uuid("Id invalido"),
 });

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   create,
+  exportRecords,
   getById,
   getLiveEta,
   list,
@@ -21,6 +22,7 @@ import { upload } from "../middlewares/upload.js";
 import { validate } from "../middlewares/validate.js";
 import {
   createRecordSchema,
+  exportRecordsQuerySchema,
   idParamSchema,
   updateRecordSchema,
   yearMonthDayParamSchema,
@@ -40,6 +42,12 @@ router.get("/", list);
 router.get("/pending", listPending);
 router.get("/search", search);
 router.get("/sync-fallidos", authorize("OWNER", "ADMIN"), listSyncFailures);
+router.get(
+  "/export",
+  authorize("OWNER", "ADMIN"),
+  validate(exportRecordsQuerySchema, "query"),
+  exportRecords
+);
 
 // Rutas con constraint numerico: deben registrarse antes de "/:id" para no chocar con el UUID.
 router.get(

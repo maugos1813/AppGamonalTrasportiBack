@@ -3,6 +3,7 @@ import {
   deleteRecordById,
   findRecordById,
   findRecords,
+  findRecordsForExport,
   findRecordsPending,
   findRecordsSummary,
   findRecordsWithSyncFailure,
@@ -20,7 +21,7 @@ import {
   updateRecordInAppsheet,
 } from "./appsheetWriteback.service.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
-import { ORIGEN_PREFIX } from "../constants/appsheetMaps.js";
+import { ORIGEN_PREFIX, toRomeParts } from "../constants/appsheetMaps.js";
 import { AppError } from "../utils/AppError.js";
 import { buildLocalDateRange } from "../utils/dateRange.js";
 
@@ -267,6 +268,68 @@ export const createRecord = async (data, { skipActiveCheck = false, actor = null
   }
 
   return toFullResponse(record);
+};
+
+// "Extras Piazza" en la planilla/historico no siempre tiene spedizzione cargada (ver
+// AREA_SPEDIZZIONE_WHERE arriba) - si el usuario pide esa seccion en el export, hay
+// que matchear tambien spedizzione null, no solo el string "EXTRA_PIAZZA".
+const seccionesToWhere = (secciones) => {
+  if (!secciones?.length) return undefined;
+  if (secciones.includes("EXTRA_PIAZZA")) {
+    return { OR: [{ spedizzione: null }, { spedizzione: { in: secciones } }] };
+  }
+  return { spedizzione: { in: secciones } };
+};
+
+const timeToMinutes = (hhmm) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// Filtra por hora de pared en Italia (no UTC crudo, ver toRomeParts), usando ETA y no
+// fechaServicio - fechaServicio no lleva hora real para los registros sincronizados
+// desde AppSheet (siempre queda en medianoche, ver comentario en
+// appsheetSync.service.js), asi que filtrar por su hora dejaria afuera casi todo el
+// historico. Soporta rango que cruza medianoche (ej. 22:00 a 06:00 de un turno
+// nocturno): si fromMin > toMin se interpreta como wraparound en vez de un rango vacio.
+const matchesTimeRange = (record, fromTime, toTime) => {
+  if (!fromTime && !toTime) return true;
+  const { hour, minute } = toRomeParts(record.eta);
+  const minutes = hour * 60 + minute;
+  const fromMin = fromTime ? timeToMinutes(fromTime) : 0;
+  const toMin = toTime ? timeToMinutes(toTime) : 23 * 60 + 59;
+  return fromMin <= toMin ? minutes >= fromMin && minutes <= toMin : minutes >= fromMin || minutes <= toMin;
+};
+
+// Export CSV de Registros (boton "Exportar CSV" en Registros, solo OWNER/ADMIN - la
+// ruta ya lo exige, pero igual se respeta el area del ADMIN como en cualquier otro
+// listado). Devuelve los registros filtrados en el mismo shape de siempre
+// (toFullResponse) - el archivo CSV en si se arma en el frontend, aca solo se filtra.
+export const exportRecordsForActor = async (actor, filters) => {
+  const { from, to, fromTime, toTime, driverId, clientId, vehicleId, secciones, zonas, estados } = filters;
+
+  // [gte, lt) en UTC, mismo criterio que buildDateRange - "to" se trata como dia
+  // inclusive (se le suma 1 dia para el limite exclusivo), no como corte a medianoche.
+  const dateRange =
+    from || to
+      ? {
+          gte: from ?? new Date(0),
+          lt: to ? new Date(to.getTime() + 24 * 60 * 60 * 1000) : new Date(),
+        }
+      : undefined;
+
+  const records = await findRecordsForExport({
+    dateRange,
+    spedizzioneFilter: spedizzioneFilterForActor(actor),
+    driverId,
+    clientId,
+    vehicleId,
+    seccionWhere: seccionesToWhere(secciones),
+    zonaValues: zonas,
+    estadoValues: estados,
+  });
+
+  return records.filter((r) => matchesTimeRange(r, fromTime, toTime)).map((record) => toResponse(record, actor));
 };
 
 export const listRecordsForActor = async (actor, dateRange) => {

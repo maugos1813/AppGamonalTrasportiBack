@@ -1,6 +1,7 @@
 import {
   createRecord,
   deleteRecord,
+  exportRecordsForActor,
   getLiveEtaForRecord,
   getRecordByIdForActor,
   listAppsheetSyncFailuresForActor,
@@ -28,6 +29,14 @@ export const list = asyncHandler(async (req, res) => {
       ? { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000), lt: new Date(Date.now() + 24 * 60 * 60 * 1000) }
       : undefined;
   const records = await listRecordsForActor(req.user, dateRange);
+  res.status(200).json({ success: true, data: { records } });
+});
+
+// Export CSV de Registros (ver ExportRecordsModal.jsx del front) - todos los filtros
+// ya vienen normalizados por exportRecordsQuerySchema (validate middleware). Devuelve
+// JSON (mismo shape que el resto de la app); el CSV en si se arma en el frontend.
+export const exportRecords = asyncHandler(async (req, res) => {
+  const records = await exportRecordsForActor(req.user, req.query);
   res.status(200).json({ success: true, data: { records } });
 });
 
