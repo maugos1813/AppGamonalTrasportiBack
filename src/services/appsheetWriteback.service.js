@@ -77,9 +77,20 @@ const buildAppsheetRow = (record) => ({
   ZONA: record.extrasPiazzaZona ? ZONA_REVERSE[record.extrasPiazzaZona] ?? "" : "",
 });
 
+// DHL Roma no tiene (ni va a tener) apartado propio en AppSheet - pedido explicito:
+// que nunca se escriba/actualice/borre ahi un registro de esa zona, para no
+// mezclarlo con DHL Milano en "DHL CONSEGNAS". Esto solo cubre lo que la app misma
+// escribe - si un chofer sigue cargando un servicio de Roma directo desde el
+// formulario de AppSheet, esa fila la puso una persona ahi y este chequeo no puede
+// hacer nada al respecto (ver appsheetSync.service.js, que SI sigue importando esas
+// filas de vuelta a la app - cortar eso tambien dejaria de traer esos servicios a la
+// app mientras los choferes de Roma no migren al formulario propio).
+const isDhlRoma = (record) => record.spedizzione === "DHL" && record.extrasPiazzaZona === "ROMA";
+
 // Escribe en "DHL CONSEGNAS" el registro recien creado desde la app (Extras Piazza o
 // DHL/AB Service - la pestana ya mezcla los 3 tipos, ver SPEDIZZIONE_MAP).
 export const appendRecordToAppsheet = async (record) => {
+  if (isDhlRoma(record)) return;
   await appendSheetRow(REGISTROS_TAB, buildAppsheetRow(record));
 };
 
@@ -94,6 +105,7 @@ export const appendRecordToAppsheet = async (record) => {
 // descoordina esa columna del origenExternoId guardado y el proximo sync termina
 // reimportando la fila como si fuera nueva (duplicando el registro).
 export const updateRecordInAppsheet = async (record) => {
+  if (isDhlRoma(record)) return;
   if (!record.origenExternoId?.startsWith(ORIGEN_PREFIX)) return;
   const sheetId = record.origenExternoId.slice(ORIGEN_PREFIX.length);
   const rowNumber = await findRowNumberByColumnValue(REGISTROS_TAB, "ID", sheetId);
@@ -108,6 +120,12 @@ export const updateRecordInAppsheet = async (record) => {
 // sacarle el prefijo da el valor real de la columna ID a buscar. Un registro que nunca
 // se pudo escribir en la hoja (ver el catch en record.service.js) no tiene
 // origenExternoId - no hay nada que borrar ahi.
+// A diferencia de append/update, esto NO se salta para DHL Roma: un registro Roma con
+// origenExternoId vino del sync (una fila que un chofer cargo a mano en AppSheet, ver
+// appsheetSync.service.js), asi que la fila SI existe en la hoja. Si se borra el
+// registro aca pero se deja la fila viva en AppSheet, el proximo sync la vuelve a
+// encontrar sin registro asociado y la reimporta como si fuera nueva - el borrado
+// "no pega" y el registro resucita solo.
 export const deleteRecordFromAppsheet = async (record) => {
   if (!record.origenExternoId?.startsWith(ORIGEN_PREFIX)) return;
   const sheetId = record.origenExternoId.slice(ORIGEN_PREFIX.length);

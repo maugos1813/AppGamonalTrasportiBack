@@ -254,7 +254,11 @@ export const createRecord = async (data, { skipActiveCheck = false, actor = null
   // la app ya quedo creado igual, no se corta el flujo del usuario por eso - pero se deja
   // appsheetSyncFallido=true marcado en el registro para que la UI avise (ver
   // computeAppsheetSyncAlerts) en vez de perderse en silencio como antes.
-  if (!data.origenExternoId) {
+  // DHL Roma no entra a este bloque: appendRecordToAppsheet no escribe nada para esa
+  // zona a proposito (ver appsheetWriteback.service.js) - si igual se marcara
+  // origenExternoId aca, quedaria apuntando a una fila que nunca existio en la hoja.
+  const isDhlRoma = record.spedizzione === "DHL" && record.extrasPiazzaZona === "ROMA";
+  if (!data.origenExternoId && !isDhlRoma) {
     try {
       await appendRecordToAppsheet(record);
       record = await updateRecordById(record.id, {
