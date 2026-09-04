@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   createLocationPing,
   createUser as createUserRecord,
+  deleteLocationPingsOlderThan,
   deleteUserById,
   findAllUsers,
   findLastLocationPing,
@@ -14,6 +15,7 @@ import {
   updateUserLocationPermission,
   updateUserReperibilidad,
 } from "../models/user.model.js";
+import { env } from "../config/env.js";
 import { findActiveRecordsByDriverIds } from "../models/record.model.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { calculateRoute, snapPointsToRoad } from "./routing.service.js";
@@ -223,6 +225,19 @@ export const updateMyReperibilidad = async (actorId, noDisponible) => {
 export const getDriverRouteHistory = async (driverId, gte, lt) => {
   const puntos = await findLocationPingsByDriverAndRange(driverId, gte, lt);
   return snapPointsToRoad(puntos);
+};
+
+// Medida de optimizacion de costos (storage de Neon): sin esto, el historial de
+// LocationPing crece para siempre. Se llama a demanda desde un endpoint autenticado
+// (ver cleanupLocationPings en user.controller.js) en vez de un setInterval en el
+// proceso, porque Render (plan free) apaga el servidor por inactividad - un cron en
+// memoria no es confiable ahi. Se dispara desde afuera (ver README, seccion
+// "Monitoreo y costos") con un scheduler externo gratuito, ej. cron-job.org, una vez
+// por semana o por mes.
+export const cleanupOldLocationPings = async () => {
+  const cutoffDate = new Date(Date.now() - env.LOCATION_PING_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const { count } = await deleteLocationPingsOlderThan(cutoffDate);
+  return { deletedCount: count, retentionDays: env.LOCATION_PING_RETENTION_DAYS, cutoffDate };
 };
 
 // Se exponen todos los choferes con ubicacion reciente, tengan o no un servicio en

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  cleanupLocationPingsHandler,
   create,
   getById,
   getReturnEtaHandler,
@@ -47,6 +48,12 @@ router.patch(
   updateMyReperibilidadHandler
 );
 router.get("/ubicaciones", authorize("OWNER", "ADMIN"), listLocations);
+
+// Medida de optimizacion de costos (borra historial de LocationPing viejo, ver
+// LOCATION_PING_RETENTION_DAYS en env.js) - solo OWNER, es un borrado en bloque e
+// irreversible. Pensado para dispararse a demanda (manualmente o con un scheduler
+// externo), ver README seccion "Monitoreo y costos".
+router.post("/location-pings/cleanup", authorize("OWNER"), cleanupLocationPingsHandler);
 
 router.get(
   "/:id",

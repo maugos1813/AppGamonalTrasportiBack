@@ -27,6 +27,18 @@ const envSchema = z.object({
   // en Google Cloud Console > APIs & Services, habilitando "Geocoding API".
   GOOGLE_MAPS_API_KEY: z.string().min(1, "GOOGLE_MAPS_API_KEY es obligatorio"),
   OSRM_BASE_URL: z.string().url().default("https://router.project-osrm.org"),
+
+  // GPS de vehiculo (seccion Mapa) - Refresh Token de la cuenta de Velocity Fleet, ver
+  // https://api-docs.velocityfleet.com/authentication. Opcional a proposito: sin esto
+  // el Mapa sigue andando igual, solo que con la ubicacion del celular del chofer en
+  // vez de la del GPS del vehiculo (ver velocityFleet.service.js).
+  VELOCITY_FLEET_REFRESH_TOKEN: z.string().optional(),
+
+  // Dias de historial de LocationPing (recorrido GPS del celular del chofer, ver
+  // "Ruta chofer"/"Recorrido real (GPS)") que se conservan antes de poder borrarlos con
+  // /api/users/location-pings/cleanup - medida de optimizacion de costos (storage de
+  // Neon), ver ese endpoint en user.controller.js.
+  LOCATION_PING_RETENTION_DAYS: z.coerce.number().default(90),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -36,6 +36,9 @@ cp .env.example .env
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Credenciales del API Token de R2 (permiso "Object Read & Write") |
 | `R2_BUCKET_NAME` | Nombre del bucket privado donde se guardan los documentos |
 | `R2_SIGNED_URL_EXPIRES_SECONDS` | Minutos (en segundos) de validez de cada URL firmada, default 900 (15 min) |
+| `GOOGLE_MAPS_API_KEY` | API key de Google Cloud con "Geocoding API" habilitada |
+| `VELOCITY_FLEET_REFRESH_TOKEN` | Opcional. Refresh Token de la cuenta de Velocity Fleet (GPS de vehiculo, seccion Mapa) - sin esto el Mapa sigue andando igual, solo con la ubicacion del celular del chofer |
+| `LOCATION_PING_RETENTION_DAYS` | Dias de historial de `LocationPing` que se conservan, default 90 - ver seccion "Monitoreo y costos" |
 
 ### Crear el bucket de Cloudflare R2
 
@@ -342,3 +345,54 @@ src/
   utils/                      AppError, asyncHandler, jwt, password, resetToken, imageProcessor (Sharp), dateRange
   emails/                     plantilla del email de recuperacion de contrasena
 ```
+
+## Monitoreo y costos (Neon / Velocity Fleet)
+
+El GPS de vehiculo (Velocity Fleet, seccion Mapa) **no escribe nada en Neon**: es un
+proxy en memoria del proceso (cache de 25s de las posiciones, cache de 5min del cruce
+targa->vehiculo), asi que por si solo no suma storage ni filas nuevas. Los puntos de
+costo reales de la app son otros, y estas son las medidas ya implementadas mas como
+revisarlas:
+
+**1. Confirmar que Neon tiene Autosuspend activo.** Es la palanca mas importante,
+mucho mas que cualquier cache del codigo: mientras el compute de Neon este "despierto"
+se cobra, este activo o no. En el dashboard de Neon (Settings > Compute), confirmar que
+"Auto-suspend" este en un valor chico (ej. 5 min de inactividad) y no desactivado.
+
+**2. Polling del front, pausado cuando no hace falta.** El Mapa, la campanita y demas
+paginas con auto-refresco usan `startVisibleInterval` (`src/lib/polling.js` en el
+front): el polling se PAUSA solo cuando la pestania pasa a segundo plano (el usuario
+cambia de pestania o minimiza), y retoma al volver. Asi una pestania del Mapa olvidada
+en segundo plano no mantiene a Neon despierto para siempre. El intervalo de refresco es
+de 30s (`REFRESH_INTERVAL_MS` en `MapPage.jsx`), el mismo que Velocity Fleet recomienda
+para su propio GPS.
+
+**3. Cache del cruce vehiculo <-> targa.** `listVehicleLivePositionsForActor`
+(`src/services/vehicle.service.js`) solo consulta la tabla de vehiculos en Neon una vez
+cada 5 minutos (la flota casi no cambia en el dia a dia), no en cada poll de 30s del
+Mapa. La consulta ademas trae solo `id`/`targa` (`findVehicleIdsAndTargas`), no todas
+las columnas. El cache se invalida solo al crear/editar/borrar un vehiculo.
+
+**4. Agregacion de LocationPing (historial GPS del celular del chofer).** Ya
+implementado en `updateMyLocation` (`src/services/user.service.js`): solo se guarda un
+punto nuevo en el historial si el chofer se movio mas de `STATIONARY_RADIUS_METERS`
+desde el ultimo punto guardado - no un insert por cada ping de ubicacion del celular.
+
+**5. Limpieza de historial viejo (retencion).** `LocationPing` no se poda solo: usar
+`POST /api/users/location-pings/cleanup` (OWNER) para borrar los puntos mas viejos que
+`LOCATION_PING_RETENTION_DAYS` (variable de entorno, default 90 dias). No corre solo en
+el proceso (Render free se apaga por inactividad, un `setInterval` ahi no es confiable)
+- hay que dispararlo desde afuera:
+  - A mano de vez en cuando: `curl -X POST https://<tu-backend>/api/users/location-pings/cleanup -H "Authorization: Bearer <token de OWNER>"`.
+  - O automatizado con un scheduler externo gratuito (ej. [cron-job.org](https://cron-job.org)) que le pegue a esa URL una vez por semana o por mes.
+
+**6. Consultas reales a Velocity Fleet, monitoreadas.** `GET /api/vehiculos/velocity-fleet-usage`
+(OWNER, ADMIN) devuelve cuantas consultas REALES le hicimos a la API de Velocity Fleet
+(no las que salieron del cache de 25s, esas no cuestan nada) desde que arranco el
+proceso - util para notar un pico anormal (ej. un bug que rompa el cache) antes de que
+impacte en su factura. Tambien se loguea un resumen cada 20 consultas reales
+(`[velocityFleet] N consultas reales...`) en los logs de Render.
+
+**7. Revisar uso real.** Dashboard de Neon (Usage: compute hours, storage) y de Render
+(Metrics: uptime, requests) muestran el consumo real; conviene revisarlos alguna vez
+por mes mientras el GPS de vehiculo este activo, sobre todo los primeros dias.

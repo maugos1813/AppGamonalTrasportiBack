@@ -1,4 +1,5 @@
 import {
+  cleanupOldLocationPings,
   createUser,
   deleteUser,
   getDriverRouteHistory,
@@ -80,4 +81,12 @@ export const getRouteHistoryHandler = asyncHandler(async (req, res) => {
   const { gte, lt } = buildDateRange(req.params.year, req.params.month, req.params.day);
   const puntos = await getDriverRouteHistory(req.params.id, gte, lt);
   res.status(200).json({ success: true, data: { puntos } });
+});
+
+// Medida de optimizacion de costos (ver cleanupOldLocationPings en user.service.js) -
+// pensado para dispararse desde afuera con un scheduler externo (Render free se apaga
+// solo, un cron en memoria no es confiable), ver README seccion "Monitoreo y costos".
+export const cleanupLocationPingsHandler = asyncHandler(async (req, res) => {
+  const result = await cleanupOldLocationPings();
+  res.status(200).json({ success: true, data: result });
 });

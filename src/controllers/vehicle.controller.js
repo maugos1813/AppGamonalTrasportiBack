@@ -1,9 +1,11 @@
+import { getVelocityFleetUsageStats } from "../services/velocityFleet.service.js";
 import {
   createVehicleRecordForActor,
   deleteMantenimientoForActor,
   deleteVehicleForActor,
   getVehicleByIdForActor,
   listMantenimientosForActor,
+  listVehicleLivePositionsForActor,
   listVehiclesForActor,
   registerKmForActor,
   updateVehicleForActor,
@@ -18,6 +20,18 @@ export const create = asyncHandler(async (req, res) => {
 export const list = asyncHandler(async (req, res) => {
   const vehicles = await listVehiclesForActor();
   res.status(200).json({ success: true, data: { vehicles } });
+});
+
+export const listLivePositions = asyncHandler(async (req, res) => {
+  const positions = await listVehicleLivePositionsForActor();
+  res.status(200).json({ success: true, data: { positions } });
+});
+
+// Monitoreo de uso de Velocity Fleet (medida de optimizacion de costos): expone el
+// contador en memoria de velocityFleet.service.js para poder notar un pico anormal de
+// consultas antes de que impacte en la factura.
+export const getVelocityFleetUsage = asyncHandler(async (req, res) => {
+  res.status(200).json({ success: true, data: getVelocityFleetUsageStats() });
 });
 
 export const getById = asyncHandler(async (req, res) => {

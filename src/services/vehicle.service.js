@@ -3,6 +3,7 @@ import {
   createVehicle as createVehicleRecord,
   deleteVehicleById,
   findVehicleById,
+  findVehicleIdsAndTargas,
   findVehicles,
   updateVehicleById,
 } from "../models/vehicle.model.js";
@@ -13,6 +14,7 @@ import {
   findMantenimientosByVehicleId,
 } from "../models/mantenimiento.model.js";
 import { deleteObject, getSignedUrlForKey, uploadObject } from "./storage.service.js";
+import { getVehicleLivePositions } from "./velocityFleet.service.js";
 import { compressImage } from "../utils/imageProcessor.js";
 import { AppError } from "../utils/AppError.js";
 
@@ -75,6 +77,7 @@ export const createVehicleRecordForActor = async (data, files) => {
     assicurazioneKey,
   });
 
+  invalidateVehiclesCache();
   return toResponse(vehicle);
 };
 
@@ -114,6 +117,7 @@ export const updateVehicleForActor = async (id, data, files) => {
   }
 
   const updated = await updateVehicleById(id, payload);
+  invalidateVehiclesCache();
   return toResponse(updated);
 };
 
@@ -163,6 +167,71 @@ export const deleteMantenimientoForActor = async (vehiculoId, mantenimientoId) =
   await deleteMantenimientoById(mantenimientoId);
 };
 
+const normalizeTarga = (targa) => targa?.replace(/\s+/g, "").toUpperCase() ?? "";
+
+// Cache en memoria del mapeo targa -> vehiculo (id/targa nomas, ver
+// findVehicleIdsAndTargas): la flota casi no cambia en el dia a dia (dar de alta/baja
+// un vehiculo es una accion manual, rara), asi que no hace falta pedirle esto a Neon en
+// cada poll del Mapa (cada 30s, ver REFRESH_INTERVAL_MS en el front) - alcanza con
+// refrescarlo cada 5 min. Medida de optimizacion de costos: sin esto, apenas Velocity
+// Fleet tenga datos, cada pestania del Mapa abierta le pega una consulta completa a la
+// tabla de vehiculos a Neon cada 30s, para siempre.
+const VEHICLES_CACHE_MS = 5 * 60 * 1000;
+let cachedVehicles = null;
+let cachedVehiclesAt = 0;
+
+const getVehiclesForPositionLookup = async () => {
+  if (cachedVehicles && Date.now() - cachedVehiclesAt < VEHICLES_CACHE_MS) return cachedVehicles;
+  cachedVehicles = await findVehicleIdsAndTargas();
+  cachedVehiclesAt = Date.now();
+  return cachedVehicles;
+};
+
+// Se llama al crear/editar/borrar un vehiculo (targa incluida) para que ese cambio se
+// vea de inmediato en el cruce con Velocity Fleet, en vez de esperar hasta 5 min a que
+// venza el cache solo.
+const invalidateVehiclesCache = () => {
+  cachedVehicles = null;
+};
+
+// Cruza la posicion en vivo de Velocity Fleet (GPS del vehiculo, ver
+// velocityFleet.service.js) con nuestros vehiculos por targa. Best-effort: si
+// Velocity Fleet no responde, o esa unidad puntual no tiene el GPS instalado (no
+// aparece en la respuesta), simplemente no se le devuelve posicion - el Mapa (front)
+// sigue mostrando la ubicacion del celular del chofer para ese vehiculo en ese caso,
+// nunca lo deja sin pin.
+export const listVehicleLivePositionsForActor = async () => {
+  let positions;
+  try {
+    positions = await getVehicleLivePositions();
+  } catch (err) {
+    console.error("No se pudo consultar Velocity Fleet:", err.message);
+    return [];
+  }
+  if (positions.length === 0) return [];
+
+  const byTarga = new Map(positions.map((p) => [p.targa, p]));
+  const vehicles = await getVehiclesForPositionLookup();
+
+  return vehicles
+    .map((v) => {
+      const position = byTarga.get(normalizeTarga(v.targa));
+      if (!position) return null;
+      return {
+        vehicleId: v.id,
+        targa: v.targa,
+        lat: position.lat,
+        lng: position.lng,
+        speed: position.speed,
+        speedUnit: position.speedUnit,
+        ignition: position.ignition,
+        direction: position.direction,
+        updatedAt: position.updatedAt,
+      };
+    })
+    .filter(Boolean);
+};
+
 export const deleteVehicleForActor = async (id) => {
   const vehicle = await findVehicleById(id);
   if (!vehicle) {
@@ -173,4 +242,5 @@ export const deleteVehicleForActor = async (id) => {
   await Promise.all(keysToDelete.map(deleteObject));
 
   await deleteVehicleById(id);
+  invalidateVehiclesCache();
 };

@@ -104,6 +104,11 @@ export const findLocationPingsByDriverAndRange = (driverId, gte, lt) =>
     orderBy: { recordedAt: "asc" },
   });
 
+// Retencion (ver LOCATION_PING_RETENTION_DAYS en env.js): borra en bloque, no fila por
+// fila, para que sea una sola sentencia SQL aunque haya miles de rows viejos.
+export const deleteLocationPingsOlderThan = (cutoffDate) =>
+  prisma.locationPing.deleteMany({ where: { recordedAt: { lt: cutoffDate } } });
+
 export const updateUserReperibilidad = (id, noDisponible) =>
   prisma.user.update({
     where: { id },

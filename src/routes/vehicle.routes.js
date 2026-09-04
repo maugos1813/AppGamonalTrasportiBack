@@ -2,7 +2,9 @@ import { Router } from "express";
 import {
   create,
   getById,
+  getVelocityFleetUsage,
   list,
+  listLivePositions,
   listMantenimientos,
   registerKm,
   remove,
@@ -33,6 +35,12 @@ router.use(authenticate);
 
 // Lectura: cualquier usuario autenticado (OWNER, ADMIN o CHOFER).
 router.get("/", list);
+// "live-positions" no matchea el UUID de "/:id" de abajo, pero igual va antes por
+// las dudas (mismo criterio que "/pending"/"/search" en record.routes.js).
+router.get("/live-positions", listLivePositions);
+// Monitoreo de uso/costos de Velocity Fleet: solo OWNER/ADMIN (info interna, no un
+// dato operativo que necesite ver un chofer).
+router.get("/velocity-fleet-usage", authorize("OWNER", "ADMIN"), getVelocityFleetUsage);
 router.get("/:id", validate(idParamSchema, "params"), getById);
 
 // Escritura: solo OWNER/ADMIN.
