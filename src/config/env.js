@@ -39,6 +39,14 @@ const envSchema = z.object({
   // /api/users/location-pings/cleanup - medida de optimizacion de costos (storage de
   // Neon), ver ese endpoint en user.controller.js.
   LOCATION_PING_RETENTION_DAYS: z.coerce.number().default(90),
+
+  // Dias que se conserva un AreaCEntry SIN PAGAR (alerta de vehiculo sin autorizacion
+  // dentro del Area C, ver vehicle.service.js) antes de poder borrarlo con
+  // /api/vehiculos/area-c-entries/cleanup. Default chico (3 dias) a proposito: en
+  // Milano se paga el Area C el mismo dia o el siguiente, pasado eso el dato ya no
+  // sirve para nada. Una vez marcada pagada, la entrada NUNCA se borra sola (queda
+  // como comprobante, igual que cualquier otro documento de la app).
+  AREA_C_ENTRY_RETENTION_DAYS: z.coerce.number().default(3),
 });
 
 const parsed = envSchema.safeParse(process.env);

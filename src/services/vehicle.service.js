@@ -13,12 +13,36 @@ import {
   findMantenimientoById,
   findMantenimientosByVehicleId,
 } from "../models/mantenimiento.model.js";
+import {
+  createAreaCEntry,
+  deleteAreaCEntriesByIds,
+  findAllEntries,
+  findEntryById,
+  findTodayEntryForVehicle,
+  findUnpaidEntries,
+  findUnpaidEntriesOlderThan,
+  updateEntryById,
+} from "../models/areaCEntry.model.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { env } from "../config/env.js";
+import { geocodeAddress } from "./geocoding.service.js";
+import { calculateRoute } from "./routing.service.js";
 import { deleteObject, getSignedUrlForKey, uploadObject } from "./storage.service.js";
 import { getVehicleLivePositions } from "./velocityFleet.service.js";
 import { compressImage } from "../utils/imageProcessor.js";
+import { pointInPolygon } from "../utils/pointInPolygon.js";
 import { AppError } from "../utils/AppError.js";
 
 const FILE_FIELDS = ["imagen", "libreto", "assicurazione"];
+
+// Mismo poligono que dibuja el Mapa en el front (src/lib/geo/milanoZones.json,
+// copiado aca) - fs.readFileSync en vez de "import ... with { type: 'json' }" porque
+// ese import necesita Node 20.10+ y package.json declara engines >=18.
+const MILANO_ZONES = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../constants/milanoZones.json", import.meta.url)), "utf-8")
+);
+const AREA_C_PATH = MILANO_ZONES.areaC;
 
 // imagen se comprime con Sharp igual que en documentos; libreto/assicurazione ya vienen
 // validados como PDF por vehicleUpload.js y se suben tal cual.
@@ -50,6 +74,7 @@ const toResponse = async (vehicle) => ({
   rTecnica: vehicle.rTecnica,
   kmUltimoMantenimiento: vehicle.kmUltimoMantenimiento,
   kmActual: vehicle.kmActual,
+  autorizadoAreaC: vehicle.autorizadoAreaC,
   createdAt: vehicle.createdAt,
   updatedAt: vehicle.updatedAt,
 });
@@ -72,6 +97,7 @@ export const createVehicleRecordForActor = async (data, files) => {
     rTecnica: data.rTecnica,
     kmUltimoMantenimiento: data.kmUltimoMantenimiento,
     kmActual: data.kmActual,
+    autorizadoAreaC: data.autorizadoAreaC ?? false,
     imagenKey,
     libretoKey,
     assicurazioneKey,
@@ -194,6 +220,57 @@ const invalidateVehiclesCache = () => {
   cachedVehicles = null;
 };
 
+// El Area C de Milano solo cobra Lunes a Viernes de 7:30 a 19:30 (hora local
+// Europe/Rome) - fuera de esa ventana (noche, fin de semana) circular ahi adentro no
+// cuesta nada, asi que no tiene sentido generar una alerta de "hay que pagar".
+// Limitacion conocida: no contempla feriados ni las suspensiones puntuales que
+// publica el Comune di Milano (ej. agosto algunos anios) - esos casos raros los tiene
+// que descartar a mano quien revise la seccion Area C del Mapa.
+const AREA_C_START_MINUTES = 7 * 60 + 30; // 07:30
+const AREA_C_END_MINUTES = 19 * 60 + 30; // 19:30
+
+const isAreaCActiveNow = () => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(new Date())
+    .reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+
+  if (parts.weekday === "Sat" || parts.weekday === "Sun") return false;
+
+  const minutesSinceMidnight = Number(parts.hour) * 60 + Number(parts.minute);
+  return minutesSinceMidnight >= AREA_C_START_MINUTES && minutesSinceMidnight < AREA_C_END_MINUTES;
+};
+
+// Registra una entrada al Area C (ver AreaCEntry en el schema) para cada vehiculo SIN
+// autorizadoAreaC cuya posicion actual cae dentro del poligono, solo mientras el Area C
+// esta activa (ver isAreaCActiveNow) - nunca un punto GPS suelto, solo el evento de
+// entrada, y como mucho uno por vehiculo por dia (el Area C de Milano se paga por dia
+// completo, ver findTodayEntryForVehicle). Best-effort y no bloqueante: un error aca (o
+// que Neon este momentaneamente lento) nunca debe romper la respuesta de posiciones en
+// vivo del Mapa.
+const checkAreaCEntries = async (matched) => {
+  if (!isAreaCActiveNow()) return;
+
+  const insideUnauthorized = matched.filter(
+    (m) => !m.autorizadoAreaC && pointInPolygon({ lat: m.lat, lng: m.lng }, AREA_C_PATH)
+  );
+
+  for (const vehicle of insideUnauthorized) {
+    try {
+      const today = await findTodayEntryForVehicle(vehicle.vehicleId);
+      if (today) continue;
+      await createAreaCEntry(vehicle.vehicleId, vehicle.targa);
+    } catch (err) {
+      console.error(`No se pudo registrar la entrada al Area C de ${vehicle.targa}:`, err.message);
+    }
+  }
+};
+
 // Cruza la posicion en vivo de Velocity Fleet (GPS del vehiculo, ver
 // velocityFleet.service.js) con nuestros vehiculos por targa. Best-effort: si
 // Velocity Fleet no responde, o esa unidad puntual no tiene el GPS instalado (no
@@ -213,13 +290,14 @@ export const listVehicleLivePositionsForActor = async () => {
   const byTarga = new Map(positions.map((p) => [p.targa, p]));
   const vehicles = await getVehiclesForPositionLookup();
 
-  return vehicles
+  const matched = vehicles
     .map((v) => {
       const position = byTarga.get(normalizeTarga(v.targa));
       if (!position) return null;
       return {
         vehicleId: v.id,
         targa: v.targa,
+        autorizadoAreaC: v.autorizadoAreaC,
         lat: position.lat,
         lng: position.lng,
         speed: position.speed,
@@ -230,6 +308,79 @@ export const listVehicleLivePositionsForActor = async () => {
       };
     })
     .filter(Boolean);
+
+  // A demanda de esta misma request (no un proceso aparte corriendo solo) - ver el
+  // comentario de checkAreaCEntries. Se dispara siempre que se pidan posiciones, sea
+  // desde el Mapa o desde la campanita de notificaciones.
+  await checkAreaCEntries(matched);
+
+  return matched.map(({ autorizadoAreaC, ...position }) => position);
+};
+
+// El bucket es privado: la respuesta siempre lleva una URL firmada fresca del
+// comprobante, nunca la key interna (mismo criterio que toResponse de vehiculos).
+const toAreaCEntryResponse = async (entry) => ({
+  id: entry.id,
+  vehicleId: entry.vehicleId,
+  targa: entry.targa,
+  enteredAt: entry.enteredAt,
+  pagado: entry.pagado,
+  paidAt: entry.paidAt,
+  comprobanteUrl: entry.comprobanteKey ? await getSignedUrlForKey(entry.comprobanteKey) : null,
+});
+
+// Seccion "Area C" del Mapa (pestanias Pagado/No pagado, ver findAllEntries).
+export const listAreaCEntriesForActor = async () => {
+  const entries = await findAllEntries();
+  return Promise.all(entries.map(toAreaCEntryResponse));
+};
+
+// Alertas de Area C sin pagar (ver findUnpaidEntries) - para la campanita de
+// notificaciones del front. Una vez marcada pagada, deja de aparecer aca (y por lo
+// tanto en la campanita) - no hace falta que el usuario la descarte a mano.
+export const listUnpaidAreaCEntriesForActor = () => findUnpaidEntries();
+
+// Marca (o desmarca) una entrada de Area C como pagada, con opcionalmente una foto del
+// comprobante - ver la seccion "Area C" del Mapa en el front. Reemplaza el comprobante
+// anterior si ya habia uno (borra el viejo de R2 antes de subir el nuevo, mismo
+// criterio que updateVehicleForActor).
+export const updateAreaCEntryForActor = async (id, data, file) => {
+  const entry = await findEntryById(id);
+  if (!entry) {
+    throw new AppError("Entrada de Area C no encontrada", 404);
+  }
+
+  const payload = { pagado: data.pagado, paidAt: data.pagado ? new Date() : null };
+
+  if (file) {
+    const buffer = await compressImage(file.buffer);
+    const key = `area-c/${entry.vehicleId}/${Date.now()}-${randomUUID()}.webp`;
+    await uploadObject(key, buffer, "image/webp");
+    if (entry.comprobanteKey) await deleteObject(entry.comprobanteKey);
+    payload.comprobanteKey = key;
+  }
+
+  const updated = await updateEntryById(id, payload);
+  return toAreaCEntryResponse(updated);
+};
+
+// Medida de optimizacion de costos (storage de Neon): sin esto, AreaCEntry crece para
+// siempre. Solo poda lo que sigue SIN pagar (ver findUnpaidEntriesOlderThan) - una
+// pagada queda de por vida, igual que cualquier otro documento de la app. Si alguna
+// (sin pagar) tenia una foto de comprobante subida igual, se borra tambien de R2 antes
+// de borrar la fila, para no dejar archivos huerfanos.
+export const cleanupOldAreaCEntries = async () => {
+  const cutoffDate = new Date(Date.now() - env.AREA_C_ENTRY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const toDelete = await findUnpaidEntriesOlderThan(cutoffDate);
+  if (toDelete.length === 0) {
+    return { deletedCount: 0, retentionDays: env.AREA_C_ENTRY_RETENTION_DAYS, cutoffDate };
+  }
+
+  const keysToDelete = toDelete.map((e) => e.comprobanteKey).filter(Boolean);
+  await Promise.all(keysToDelete.map(deleteObject));
+  await deleteAreaCEntriesByIds(toDelete.map((e) => e.id));
+
+  return { deletedCount: toDelete.length, retentionDays: env.AREA_C_ENTRY_RETENTION_DAYS, cutoffDate };
 };
 
 export const deleteVehicleForActor = async (id) => {
@@ -243,4 +394,34 @@ export const deleteVehicleForActor = async (id) => {
 
   await deleteVehicleById(id);
   invalidateVehiclesCache();
+};
+
+// "A donde llegaria y en cuanto tiempo si un vehiculo/chofer saliera ahora desde su
+// posicion actual hacia una direccion o ciudad escrita a mano" (Mapa, buscador de
+// targa) - reutiliza el geocoder que ya usan los registros (con cache en
+// GeocodeCache, sin costo extra a Google en direcciones repetidas) y el mismo
+// calculo de ruta que la ETA en vivo de un servicio. origenLat/Lng los manda el
+// front (la posicion que ya esta mostrando en el marcador). Best-effort: si la
+// direccion no geocodifica o no se puede calcular la ruta, se devuelve null y el
+// front muestra "no disponible", no se rompe la busqueda.
+export const getEtaToDestinationForActor = async ({ origenLat, origenLng, destino }) => {
+  let destinoCoords;
+  try {
+    destinoCoords = await geocodeAddress(destino);
+  } catch {
+    return null;
+  }
+
+  const ruta = await calculateRoute([{ lat: origenLat, lng: origenLng }, destinoCoords]);
+  if (!ruta) return null;
+
+  return {
+    distanciaKm: ruta.distanciaKm,
+    duracionMin: ruta.duracionMin,
+    // OSRM ya devuelve la geometria completa en la misma consulta que calcula
+    // distancia/duracion (ver calculateRoute) - no es una llamada extra, es aprovechar
+    // lo que ya vino, para poder dibujar la ruta en el mapa.
+    geometria: ruta.geometria,
+    destino: destinoCoords,
+  };
 };

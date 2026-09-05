@@ -39,6 +39,7 @@ cp .env.example .env
 | `GOOGLE_MAPS_API_KEY` | API key de Google Cloud con "Geocoding API" habilitada |
 | `VELOCITY_FLEET_REFRESH_TOKEN` | Opcional. Refresh Token de la cuenta de Velocity Fleet (GPS de vehiculo, seccion Mapa) - sin esto el Mapa sigue andando igual, solo con la ubicacion del celular del chofer |
 | `LOCATION_PING_RETENTION_DAYS` | Dias de historial de `LocationPing` que se conservan, default 90 - ver seccion "Monitoreo y costos" |
+| `AREA_C_ENTRY_RETENTION_DAYS` | Dias que se conserva un `AreaCEntry` (alerta de Area C), default 3 - ver seccion "Monitoreo y costos" |
 
 ### Crear el bucket de Cloudflare R2
 
@@ -396,3 +397,18 @@ impacte en su factura. Tambien se loguea un resumen cada 20 consultas reales
 **7. Revisar uso real.** Dashboard de Neon (Usage: compute hours, storage) y de Render
 (Metrics: uptime, requests) muestran el consumo real; conviene revisarlos alguna vez
 por mes mientras el GPS de vehiculo este activo, sobre todo los primeros dias.
+
+**8. Seccion "Area C" del Mapa, sin guardar GPS continuo.** Cuando un vehiculo sin
+`autorizadoAreaC` (ver el checkbox en su ficha) entra al poligono de Area C (ZTL de
+Milano), se guarda UN registro liviano por dia (`AreaCEntry`: vehiculo + hora, nada de
+un rastro de puntos GPS - el Area C se paga por dia completo, no por entrada) - se
+detecta solo, como efecto de cada consulta a `/vehiculos/live-positions` (Mapa o
+campanita de notificaciones), nunca con un proceso aparte corriendo solo. Se marca
+pagada (con opcionalmente una foto del comprobante, sube a R2 igual que cualquier otro
+documento) desde la seccion "Area C" del Mapa - mientras no se pague, tambien aparece
+como alerta urgente en la campanita, que no se puede "descartar" a mano ahi: solo
+desaparece marcandola pagada. Retencion: solo se poda lo que sigue SIN pagar, con
+`POST /api/vehiculos/area-c-entries/cleanup` (OWNER) mas alla de
+`AREA_C_ENTRY_RETENTION_DAYS` (default 3 dias, mismo mecanismo de scheduler externo que
+el punto 5) - una vez pagada, la entrada (y su comprobante) queda de por vida, como
+cualquier otro documento de la app.

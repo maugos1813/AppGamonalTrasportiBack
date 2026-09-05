@@ -1,13 +1,18 @@
 import { getVelocityFleetUsageStats } from "../services/velocityFleet.service.js";
 import {
+  cleanupOldAreaCEntries,
   createVehicleRecordForActor,
   deleteMantenimientoForActor,
   deleteVehicleForActor,
+  getEtaToDestinationForActor,
   getVehicleByIdForActor,
+  listAreaCEntriesForActor,
   listMantenimientosForActor,
+  listUnpaidAreaCEntriesForActor,
   listVehicleLivePositionsForActor,
   listVehiclesForActor,
   registerKmForActor,
+  updateAreaCEntryForActor,
   updateVehicleForActor,
 } from "../services/vehicle.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -32,6 +37,41 @@ export const listLivePositions = asyncHandler(async (req, res) => {
 // consultas antes de que impacte en la factura.
 export const getVelocityFleetUsage = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: getVelocityFleetUsageStats() });
+});
+
+// ETA a un destino escrito a mano desde la posicion actual de un vehiculo/chofer (ver
+// buscador de targa del Mapa en el front).
+export const getEtaToDestination = asyncHandler(async (req, res) => {
+  const eta = await getEtaToDestinationForActor(req.body);
+  res.status(200).json({ success: true, data: { eta } });
+});
+
+// Seccion "Area C" del Mapa (pestanias Pagado/No pagado, ver checkAreaCEntries en
+// vehicle.service.js - las entradas se registran solas al consultar live-positions).
+export const listAreaCEntries = asyncHandler(async (req, res) => {
+  const entries = await listAreaCEntriesForActor();
+  res.status(200).json({ success: true, data: { entries } });
+});
+
+// Alertas de Area C sin pagar - para la campanita de notificaciones del front.
+export const listUnpaidAreaCEntries = asyncHandler(async (req, res) => {
+  const entries = await listUnpaidAreaCEntriesForActor();
+  res.status(200).json({ success: true, data: { entries } });
+});
+
+// Marca (o desmarca) una entrada de Area C como pagada, con opcionalmente una foto
+// del comprobante (ver areaCEntryUpload.js) - seccion "Area C" del Mapa.
+export const updateAreaCEntry = asyncHandler(async (req, res) => {
+  const entry = await updateAreaCEntryForActor(req.params.id, req.body, req.file);
+  res.status(200).json({ success: true, data: { entry } });
+});
+
+// Medida de optimizacion de costos (ver cleanupOldAreaCEntries en vehicle.service.js) -
+// pensado para dispararse desde afuera con un scheduler externo, mismo criterio que
+// /users/location-pings/cleanup.
+export const cleanupAreaCEntries = asyncHandler(async (req, res) => {
+  const result = await cleanupOldAreaCEntries();
+  res.status(200).json({ success: true, data: result });
 });
 
 export const getById = asyncHandler(async (req, res) => {

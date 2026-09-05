@@ -140,14 +140,43 @@ model Vehiculo {
   // se compara contra el intervalo fijo de 20000km para avisar cuando se acerca o vence el service.
   kmUltimoMantenimiento Float?
   kmActual              Float?
+  // Permiso ZTL de Milano (electrico, discapacidad, etc.) - si esta en false (default)
+  // y el GPS del vehiculo (Velocity Fleet) lo detecta dentro del poligono de Area C, se
+  // dispara una alerta (ver computeAreaCAlerts en el front) para evitar una multa.
+  autorizadoAreaC  Boolean        @default(false)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
   records        Record[]
   mantenimientos MantenimientoVehiculo[]
   choferesAsignados User[]
+  areaCEntries      AreaCEntry[]
 
   @@map("vehiculos")
+}
+
+// Un registro liviano por CADA DIA que un vehiculo sin autorizadoAreaC entra al
+// poligono de Area C (no un punto GPS continuo, y no una fila por entrada - el Area C
+// de Milano se paga por dia completo, ver findTodayEntryForVehicle en
+// areaCEntry.model.js). Seccion "Area C" del Mapa: se completa a mano marcando
+// pagado=true, con opcionalmente una foto del comprobante subida a R2.
+// Retencion (ver AREA_C_ENTRY_RETENTION_DAYS en env.js): solo se poda lo que sigue SIN
+// pagar - una vez pagado (con o sin comprobante) queda como registro permanente, igual
+// que cualquier otro documento de la app.
+model AreaCEntry {
+  id             String    @id @default(uuid())
+  vehicleId      String
+  vehicle        Vehiculo  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  // Denormalizado (no solo via la relacion) para no tener que hacer join al listar
+  // las alertas - la targa en si no cambia nunca en la practica.
+  targa          String
+  enteredAt      DateTime  @default(now())
+  pagado         Boolean   @default(false)
+  paidAt         DateTime?
+  comprobanteKey String?
+
+  @@index([vehicleId, enteredAt])
+  @@map("area_c_entries")
 }
 
 // Historial de cada carga de KM en la seccion Mecanica: conserva el registro completo
