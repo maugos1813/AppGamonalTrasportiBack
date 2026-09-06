@@ -23,6 +23,12 @@ import {
   findUnpaidEntriesOlderThan,
   updateEntryById,
 } from "../models/areaCEntry.model.js";
+import {
+  createSpeedingEvent,
+  deleteSpeedingEventsOlderThan,
+  findRecentEventForVehicle,
+  findRecentEvents,
+} from "../models/speedingEvent.model.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { env } from "../config/env.js";
@@ -271,6 +277,39 @@ const checkAreaCEntries = async (matched) => {
   }
 };
 
+// Velocity Fleet no siempre reporta en km/h (ver speed_measure_text en la doc) - se
+// convierte antes de comparar contra el umbral. Unidad desconocida => null (no se
+// evalua ese vehiculo, mejor no arriesgar un falso positivo/negativo por asumir mal).
+const MPH_TO_KMH = 1.60934;
+const toKmh = (speed, speedUnit) => {
+  if (speed == null || !speedUnit) return null;
+  const unit = speedUnit.trim().toUpperCase();
+  if (unit === "KM/H" || unit === "KMH") return speed;
+  if (unit === "MPH") return speed * MPH_TO_KMH;
+  return null;
+};
+
+// Registra un exceso de velocidad (ver SpeedingEvent en el schema) para cada vehiculo
+// que supere SPEEDING_THRESHOLD_KMH - nunca un punto GPS suelto, y como mucho uno cada
+// SPEEDING_DEDUP_MINUTES por vehiculo (un exceso sostenido de varios minutos se agrupa
+// como el mismo episodio, no una fila nueva en cada poll). Best-effort y no
+// bloqueante, mismo criterio que checkAreaCEntries.
+const checkSpeedingEvents = async (matched) => {
+  const speeding = matched
+    .map((m) => ({ ...m, speedKmh: toKmh(m.speed, m.speedUnit) }))
+    .filter((m) => m.speedKmh != null && m.speedKmh > env.SPEEDING_THRESHOLD_KMH);
+
+  for (const vehicle of speeding) {
+    try {
+      const recent = await findRecentEventForVehicle(vehicle.vehicleId, env.SPEEDING_DEDUP_MINUTES);
+      if (recent) continue;
+      await createSpeedingEvent(vehicle.vehicleId, vehicle.targa, vehicle.speedKmh);
+    } catch (err) {
+      console.error(`No se pudo registrar el exceso de velocidad de ${vehicle.targa}:`, err.message);
+    }
+  }
+};
+
 // Cruza la posicion en vivo de Velocity Fleet (GPS del vehiculo, ver
 // velocityFleet.service.js) con nuestros vehiculos por targa. Best-effort: si
 // Velocity Fleet no responde, o esa unidad puntual no tiene el GPS instalado (no
@@ -313,6 +352,7 @@ export const listVehicleLivePositionsForActor = async () => {
   // comentario de checkAreaCEntries. Se dispara siempre que se pidan posiciones, sea
   // desde el Mapa o desde la campanita de notificaciones.
   await checkAreaCEntries(matched);
+  await checkSpeedingEvents(matched);
 
   return matched.map(({ autorizadoAreaC, ...position }) => position);
 };
@@ -381,6 +421,20 @@ export const cleanupOldAreaCEntries = async () => {
   await deleteAreaCEntriesByIds(toDelete.map((e) => e.id));
 
   return { deletedCount: toDelete.length, retentionDays: env.AREA_C_ENTRY_RETENTION_DAYS, cutoffDate };
+};
+
+// Excesos de velocidad recientes (ver checkSpeedingEvents) - para la campanita de
+// notificaciones del front. A diferencia de Area C, es un aviso comun (se puede
+// descartar con la X normal).
+export const listSpeedingEventsForActor = () => findRecentEvents();
+
+// Medida de optimizacion de costos (storage de Neon): sin excepciones (a diferencia de
+// AreaCEntry, aca no hay "pagado" que conservar de por vida) - se poda todo lo que
+// supere SPEEDING_EVENT_RETENTION_DAYS.
+export const cleanupOldSpeedingEvents = async () => {
+  const cutoffDate = new Date(Date.now() - env.SPEEDING_EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const { count } = await deleteSpeedingEventsOlderThan(cutoffDate);
+  return { deletedCount: count, retentionDays: env.SPEEDING_EVENT_RETENTION_DAYS, cutoffDate };
 };
 
 export const deleteVehicleForActor = async (id) => {

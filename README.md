@@ -40,6 +40,9 @@ cp .env.example .env
 | `VELOCITY_FLEET_REFRESH_TOKEN` | Opcional. Refresh Token de la cuenta de Velocity Fleet (GPS de vehiculo, seccion Mapa) - sin esto el Mapa sigue andando igual, solo con la ubicacion del celular del chofer |
 | `LOCATION_PING_RETENTION_DAYS` | Dias de historial de `LocationPing` que se conservan, default 90 - ver seccion "Monitoreo y costos" |
 | `AREA_C_ENTRY_RETENTION_DAYS` | Dias que se conserva un `AreaCEntry` (alerta de Area C), default 3 - ver seccion "Monitoreo y costos" |
+| `SPEEDING_THRESHOLD_KMH` | Velocidad (km/h) a partir de la cual se genera una alerta de exceso de velocidad, default 120 |
+| `SPEEDING_DEDUP_MINUTES` | Minutos para agrupar un exceso sostenido como el mismo episodio (no una alerta nueva cada poll), default 20 |
+| `SPEEDING_EVENT_RETENTION_DAYS` | Dias que se conserva un `SpeedingEvent`, default 30 - ver seccion "Monitoreo y costos" |
 
 ### Crear el bucket de Cloudflare R2
 
@@ -412,3 +415,13 @@ desaparece marcandola pagada. Retencion: solo se poda lo que sigue SIN pagar, co
 `AREA_C_ENTRY_RETENTION_DAYS` (default 3 dias, mismo mecanismo de scheduler externo que
 el punto 5) - una vez pagada, la entrada (y su comprobante) queda de por vida, como
 cualquier otro documento de la app.
+
+**9. Alertas de exceso de velocidad, mismo criterio que Area C.** Si el GPS de un
+vehiculo reporta mas de `SPEEDING_THRESHOLD_KMH` (default 120 km/h), se guarda UN
+`SpeedingEvent` (vehiculo + velocidad + hora) - se agrupa como el mismo episodio si
+paso hace menos de `SPEEDING_DEDUP_MINUTES` (default 20), no una fila nueva en cada
+poll. Se detecta solo, como efecto de la misma consulta que Area C - ningun proceso
+aparte. Es una alerta comun de la campanita (se descarta con la X normal, a diferencia
+de Area C: esto es un aviso de manejo, no algo con un plazo de pago). Retencion sin
+excepciones (nunca queda de por vida): `POST /api/vehiculos/speeding-events/cleanup`
+(OWNER) poda todo lo mas viejo que `SPEEDING_EVENT_RETENTION_DAYS` (default 30 dias).

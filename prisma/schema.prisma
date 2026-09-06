@@ -151,6 +151,7 @@ model Vehiculo {
   mantenimientos MantenimientoVehiculo[]
   choferesAsignados User[]
   areaCEntries      AreaCEntry[]
+  speedingEvents    SpeedingEvent[]
 
   @@map("vehiculos")
 }
@@ -177,6 +178,26 @@ model AreaCEntry {
 
   @@index([vehicleId, enteredAt])
   @@map("area_c_entries")
+}
+
+// Un registro liviano por CADA VEZ que un vehiculo supera SPEEDING_THRESHOLD_KMH
+// (ver env.js) segun el GPS de Velocity Fleet - no un punto GPS continuo, y como mucho
+// uno cada SPEEDING_DEDUP_MINUTES por vehiculo (un exceso de velocidad sostenido no
+// genera una fila nueva cada 30-60s, se agrupa como el mismo episodio, ver
+// checkSpeedingEvents en vehicle.service.js). Alerta comun de la campanita (se puede
+// descartar con la X, a diferencia de Area C - esto es un aviso de manejo, no algo con
+// un plazo de pago). Retencion (SPEEDING_EVENT_RETENTION_DAYS, default 30): se poda
+// sola, no hace falta conservarla de por vida.
+model SpeedingEvent {
+  id         String   @id @default(uuid())
+  vehicleId  String
+  vehicle    Vehiculo @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  targa      String
+  speedKmh   Float
+  occurredAt DateTime @default(now())
+
+  @@index([vehicleId, occurredAt])
+  @@map("speeding_events")
 }
 
 // Historial de cada carga de KM en la seccion Mecanica: conserva el registro completo

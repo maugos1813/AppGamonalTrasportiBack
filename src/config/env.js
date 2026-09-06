@@ -47,6 +47,17 @@ const envSchema = z.object({
   // sirve para nada. Una vez marcada pagada, la entrada NUNCA se borra sola (queda
   // como comprobante, igual que cualquier otro documento de la app).
   AREA_C_ENTRY_RETENTION_DAYS: z.coerce.number().default(3),
+
+  // Exceso de velocidad (GPS del vehiculo, campanita de notificaciones) - umbral en
+  // km/h (ver vehicle.service.js) y minutos para agrupar un exceso sostenido como el
+  // mismo episodio en vez de una fila nueva cada 30-60s.
+  SPEEDING_THRESHOLD_KMH: z.coerce.number().default(120),
+  SPEEDING_DEDUP_MINUTES: z.coerce.number().default(20),
+  // Dias que se conserva un SpeedingEvent antes de poder borrarlo con
+  // /api/vehiculos/speeding-events/cleanup - a diferencia de AreaCEntry, esto no tiene
+  // "pagado": es un aviso de manejo que se descarta con la X normal de la campanita,
+  // asi que se poda entero pasado este plazo, sin excepciones.
+  SPEEDING_EVENT_RETENTION_DAYS: z.coerce.number().default(30),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   cleanupAreaCEntries,
+  cleanupSpeedingEvents,
   create,
   getById,
   getEtaToDestination,
@@ -9,6 +10,7 @@ import {
   listAreaCEntries,
   listLivePositions,
   listMantenimientos,
+  listSpeedingEvents,
   listUnpaidAreaCEntries,
   registerKm,
   remove,
@@ -72,6 +74,10 @@ router.patch(
   validate(updateAreaCEntrySchema),
   updateAreaCEntry
 );
+// Excesos de velocidad (campanita) + su limpieza (medida de optimizacion de costos,
+// ver SPEEDING_EVENT_RETENTION_DAYS en env.js) - mismo criterio que Area C arriba.
+router.get("/speeding-events", authorize("OWNER", "ADMIN"), listSpeedingEvents);
+router.post("/speeding-events/cleanup", authorize("OWNER"), cleanupSpeedingEvents);
 router.get("/:id", validate(idParamSchema, "params"), getById);
 
 // Escritura: solo OWNER/ADMIN.

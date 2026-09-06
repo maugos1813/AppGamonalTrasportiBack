@@ -18,7 +18,11 @@ const ACCESS_TOKEN_TTL_MS = 29 * 24 * 60 * 60 * 1000;
 
 const fetchAccessToken = async () => {
   const form = new URLSearchParams();
-  form.set("token", env.VELOCITY_FLEET_REFRESH_TOKEN);
+  // .trim(): un espacio o salto de linea de mas al pegar el token en las variables de
+  // entorno (Render, .env local) rompe la renovacion en silencio - Velocity Fleet
+  // puede responder 200 igual pero sin un token real adentro, y recien ahi explota
+  // (401) en la consulta de posiciones, con un mensaje que no dice nada de esto.
+  form.set("token", env.VELOCITY_FLEET_REFRESH_TOKEN.trim());
 
   const res = await fetch(`${BASE_URL}/vapi/v1/accounts/users/oauth2/refresh/`, {
     method: "POST",
@@ -27,6 +31,12 @@ const fetchAccessToken = async () => {
   if (!res.ok) throw new Error(`no se pudo renovar el access token (${res.status})`);
 
   const data = await res.json();
+  if (!data.token) {
+    throw new Error(
+      "Velocity Fleet no devolvio un access token valido al renovar - revisar que " +
+        "VELOCITY_FLEET_REFRESH_TOKEN este bien copiado (sin espacios/saltos de linea de mas)"
+    );
+  }
   return data.token;
 };
 

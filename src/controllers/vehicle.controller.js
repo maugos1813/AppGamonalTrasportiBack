@@ -1,6 +1,7 @@
 import { getVelocityFleetUsageStats } from "../services/velocityFleet.service.js";
 import {
   cleanupOldAreaCEntries,
+  cleanupOldSpeedingEvents,
   createVehicleRecordForActor,
   deleteMantenimientoForActor,
   deleteVehicleForActor,
@@ -8,6 +9,7 @@ import {
   getVehicleByIdForActor,
   listAreaCEntriesForActor,
   listMantenimientosForActor,
+  listSpeedingEventsForActor,
   listUnpaidAreaCEntriesForActor,
   listVehicleLivePositionsForActor,
   listVehiclesForActor,
@@ -71,6 +73,20 @@ export const updateAreaCEntry = asyncHandler(async (req, res) => {
 // /users/location-pings/cleanup.
 export const cleanupAreaCEntries = asyncHandler(async (req, res) => {
   const result = await cleanupOldAreaCEntries();
+  res.status(200).json({ success: true, data: result });
+});
+
+// Excesos de velocidad (ver checkSpeedingEvents en vehicle.service.js) - para la
+// campanita de notificaciones del front.
+export const listSpeedingEvents = asyncHandler(async (req, res) => {
+  const events = await listSpeedingEventsForActor();
+  res.status(200).json({ success: true, data: { events } });
+});
+
+// Medida de optimizacion de costos (ver cleanupOldSpeedingEvents en
+// vehicle.service.js) - mismo criterio que cleanupAreaCEntries.
+export const cleanupSpeedingEvents = asyncHandler(async (req, res) => {
+  const result = await cleanupOldSpeedingEvents();
   res.status(200).json({ success: true, data: result });
 });
 
