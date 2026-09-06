@@ -11,6 +11,11 @@ enum Area {
   EXTRAS_PIAZZA
   DHL
   FARMACIA
+  // Vehiculos importados automaticamente desde Velocity Fleet (targa detectada por
+  // GPS que todavia no tenia ficha en la app, ver syncVehiclesFromVelocityFleetForActor
+  // en vehicle.service.js) - se crean con esta area a proposito, para que se note de
+  // un vistazo cuales faltan revisar y completar a mano.
+  SIN_ASIGNAR
 }
 
 // Grupo operativo/organizacional del usuario dentro de la empresa, independiente del

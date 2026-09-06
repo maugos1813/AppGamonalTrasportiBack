@@ -15,6 +15,7 @@ import {
   registerKm,
   remove,
   removeMantenimiento,
+  syncVehiclesFromVelocityFleet,
   update,
   updateAreaCEntry,
 } from "../controllers/vehicle.controller.js";
@@ -78,6 +79,11 @@ router.patch(
 // ver SPEEDING_EVENT_RETENTION_DAYS en env.js) - mismo criterio que Area C arriba.
 router.get("/speeding-events", authorize("OWNER", "ADMIN"), listSpeedingEvents);
 router.post("/speeding-events/cleanup", authorize("OWNER"), cleanupSpeedingEvents);
+// Importa a demanda las targas de Velocity Fleet que todavia no tengan ficha en la
+// app (boton en Vehiculos) - solo OWNER: crea vehiculos reales con area SIN_ASIGNAR,
+// no una alerta descartable, y no queremos que un ADMIN "de area" importe vehiculos
+// fuera de su area sin querer.
+router.post("/sync-from-velocity-fleet", authorize("OWNER"), syncVehiclesFromVelocityFleet);
 router.get("/:id", validate(idParamSchema, "params"), getById);
 
 // Escritura: solo OWNER/ADMIN.

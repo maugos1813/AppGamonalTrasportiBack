@@ -14,6 +14,7 @@ import {
   listVehicleLivePositionsForActor,
   listVehiclesForActor,
   registerKmForActor,
+  syncVehiclesFromVelocityFleetForActor,
   updateAreaCEntryForActor,
   updateVehicleForActor,
 } from "../services/vehicle.service.js";
@@ -32,6 +33,13 @@ export const list = asyncHandler(async (req, res) => {
 export const listLivePositions = asyncHandler(async (req, res) => {
   const positions = await listVehicleLivePositionsForActor();
   res.status(200).json({ success: true, data: { positions } });
+});
+
+// Importa a demanda las targas que reporte Velocity Fleet y que todavia no tengan
+// ficha en la app (ver syncVehiclesFromVelocityFleetForActor) - boton en Vehiculos.
+export const syncVehiclesFromVelocityFleet = asyncHandler(async (req, res) => {
+  const result = await syncVehiclesFromVelocityFleetForActor();
+  res.status(200).json({ success: true, data: result });
 });
 
 // Monitoreo de uso de Velocity Fleet (medida de optimizacion de costos): expone el

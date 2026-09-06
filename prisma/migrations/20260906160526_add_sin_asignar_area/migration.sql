@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "Area" ADD VALUE 'SIN_ASIGNAR';

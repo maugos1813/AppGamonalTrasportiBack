@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const AREA_VALUES = ["EXTRAS_PIAZZA", "DHL", "FARMACIA"];
+// SIN_ASIGNAR: vehiculos importados automaticamente desde Velocity Fleet (ver
+// syncVehiclesFromVelocityFleetForActor en vehicle.service.js) que todavia no tienen
+// area real cargada a mano.
+const AREA_VALUES = ["EXTRAS_PIAZZA", "DHL", "FARMACIA", "SIN_ASIGNAR"];
 const GRUPO_VALUES = ["SOCIEDAD", "MILANO_NORD", "MILANO_SUD", "ROMA", "FARMACIA"];
 const ESTADO_VEHICULO_VALUES = ["DISPONIBLE", "EN_MANTENIMIENTO", "FUERA_DE_SERVICIO"];
 

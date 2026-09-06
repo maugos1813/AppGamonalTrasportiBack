@@ -357,6 +357,52 @@ export const listVehicleLivePositionsForActor = async () => {
   return matched.map(({ autorizadoAreaC, ...position }) => position);
 };
 
+// Crea una ficha de Vehiculo (area SIN_ASIGNAR, modelo "Por completar" - para que se
+// note de un vistazo que falta revisarla a mano) para cada targa que el GPS de
+// Velocity Fleet reporte y que todavia no tenga ficha en la app. Pedido explicito del
+// OWNER para tener un registro completo de cada targa "por si acaso". A demanda (boton
+// en Vehiculos), nunca automatico en cada poll - a diferencia de Area C/exceso de
+// velocidad, esto crea datos de negocio reales (una fila de Vehiculo), no una alerta
+// descartable.
+//
+// Fuente de targas: las posiciones en vivo (unico endpoint de Velocity Fleet
+// integrado hoy) - solo capta vehiculos transmitiendo EN ESE MOMENTO. Si alguno esta
+// apagado justo ahora, no aparece esta vez, pero se importa solo la proxima vez que
+// este encendido y se vuelva a correr esto.
+export const syncVehiclesFromVelocityFleetForActor = async () => {
+  let positions;
+  try {
+    positions = await getVehicleLivePositions();
+  } catch (err) {
+    throw new AppError(`No se pudo consultar Velocity Fleet: ${err.message}`, 502);
+  }
+
+  const existingTargas = new Set(
+    (await getVehiclesForPositionLookup()).map((v) => normalizeTarga(v.targa))
+  );
+
+  const seen = new Set();
+  const created = [];
+  for (const position of positions) {
+    const normTarga = normalizeTarga(position.targa);
+    if (!normTarga || existingTargas.has(normTarga) || seen.has(normTarga)) continue;
+    seen.add(normTarga);
+
+    const vehicle = await createVehicleRecord({
+      id: randomUUID(),
+      targa: position.targa,
+      modelo: "Por completar",
+      area: "SIN_ASIGNAR",
+      estado: "DISPONIBLE",
+    });
+    created.push({ id: vehicle.id, targa: vehicle.targa });
+  }
+
+  if (created.length > 0) invalidateVehiclesCache();
+
+  return { createdCount: created.length, created };
+};
+
 // El bucket es privado: la respuesta siempre lleva una URL firmada fresca del
 // comprobante, nunca la key interna (mismo criterio que toResponse de vehiculos).
 const toAreaCEntryResponse = async (entry) => ({
