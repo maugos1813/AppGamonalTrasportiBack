@@ -3,7 +3,7 @@ services:
     type: web
     runtime: node
     plan: free
-    buildCommand: npm install -g pnpm@10.27.0 && pnpm install --frozen-lockfile && npx prisma generate
+    buildCommand: npm install -g pnpm@10.27.0 && pnpm install --frozen-lockfile && npx prisma generate && npx prisma migrate deploy
     startCommand: pnpm start
     envVars:
       - key: NODE_ENV
