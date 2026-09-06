@@ -7,6 +7,8 @@ import {
   findVehicles,
   updateVehicleById,
 } from "../models/vehicle.model.js";
+import { findOwnerAndAdminUserIds } from "../models/user.model.js";
+import { sendPushToUserIds } from "./pushNotification.service.js";
 import {
   createMantenimiento,
   deleteMantenimientoById,
@@ -265,12 +267,24 @@ const checkAreaCEntries = async (matched) => {
   const insideUnauthorized = matched.filter(
     (m) => !m.autorizadoAreaC && pointInPolygon({ lat: m.lat, lng: m.lng }, AREA_C_PATH)
   );
+  if (insideUnauthorized.length === 0) return;
+
+  // Se pide una sola vez por llamada (no por vehiculo) y solo si hace falta - la
+  // mayoria de los polls no crean ninguna entrada nueva.
+  let recipientIds = null;
 
   for (const vehicle of insideUnauthorized) {
     try {
       const today = await findTodayEntryForVehicle(vehicle.vehicleId);
       if (today) continue;
       await createAreaCEntry(vehicle.vehicleId, vehicle.targa);
+
+      recipientIds ??= await findOwnerAndAdminUserIds();
+      sendPushToUserIds(recipientIds, {
+        title: "Area C sin autorizacion",
+        body: `El vehiculo ${vehicle.targa} entro al Area C sin autorizacion`,
+        data: { type: "area-c", targa: vehicle.targa },
+      }).catch((err) => console.error("No se pudo enviar push de Area C:", err.message));
     } catch (err) {
       console.error(`No se pudo registrar la entrada al Area C de ${vehicle.targa}:`, err.message);
     }
@@ -298,12 +312,22 @@ const checkSpeedingEvents = async (matched) => {
   const speeding = matched
     .map((m) => ({ ...m, speedKmh: toKmh(m.speed, m.speedUnit) }))
     .filter((m) => m.speedKmh != null && m.speedKmh > env.SPEEDING_THRESHOLD_KMH);
+  if (speeding.length === 0) return;
+
+  let recipientIds = null;
 
   for (const vehicle of speeding) {
     try {
       const recent = await findRecentEventForVehicle(vehicle.vehicleId, env.SPEEDING_DEDUP_MINUTES);
       if (recent) continue;
       await createSpeedingEvent(vehicle.vehicleId, vehicle.targa, vehicle.speedKmh);
+
+      recipientIds ??= await findOwnerAndAdminUserIds();
+      sendPushToUserIds(recipientIds, {
+        title: "Exceso de velocidad",
+        body: `El vehiculo ${vehicle.targa} supero los ${env.SPEEDING_THRESHOLD_KMH}km/h (${Math.round(vehicle.speedKmh)}km/h)`,
+        data: { type: "speeding", targa: vehicle.targa },
+      }).catch((err) => console.error("No se pudo enviar push de exceso de velocidad:", err.message));
     } catch (err) {
       console.error(`No se pudo registrar el exceso de velocidad de ${vehicle.targa}:`, err.message);
     }

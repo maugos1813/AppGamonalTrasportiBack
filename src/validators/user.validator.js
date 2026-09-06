@@ -65,6 +65,18 @@ export const updateReperibilidadSchema = z.object({
   noDisponible: z.boolean(),
 });
 
+// Token de dispositivo (Firebase Cloud Messaging, ver pushNotification.service.js) -
+// platform solo informativo por ahora (siempre "android", la app todavia no se
+// distribuye para iOS).
+export const registerPushTokenSchema = z.object({
+  token: z.string().min(1, "El token es obligatorio"),
+  platform: z.enum(["android", "ios"]).default("android"),
+});
+
+export const unregisterPushTokenSchema = z.object({
+  token: z.string().min(1, "El token es obligatorio"),
+});
+
 export const routeHistoryParamSchema = z.object({
   id: z.string().uuid("Id invalido"),
   year: z.coerce.number().int().min(1970).max(3000),

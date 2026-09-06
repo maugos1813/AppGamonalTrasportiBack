@@ -425,3 +425,19 @@ aparte. Es una alerta comun de la campanita (se descarta con la X normal, a dife
 de Area C: esto es un aviso de manejo, no algo con un plazo de pago). Retencion sin
 excepciones (nunca queda de por vida): `POST /api/vehiculos/speeding-events/cleanup`
 (OWNER) poda todo lo mas viejo que `SPEEDING_EVENT_RETENTION_DAYS` (default 30 dias).
+
+**10. Notificaciones push (Area C, exceso de velocidad) al celular, gratis.** Cuando se
+crea un `AreaCEntry` o `SpeedingEvent` nuevo (puntos 8 y 9), se manda ademas una
+notificacion push a OWNER/ADMIN via Firebase Cloud Messaging (gratis, sin limite
+practico para esta escala) - la app queda avisada aunque este cerrada, no hace falta
+tenerla abierta mirando la campanita. Sin costo en Neon: no agrega ninguna consulta
+nueva, se dispara como efecto de la misma deteccion que ya corria (ver puntos 8 y 9), y
+la tabla `PushToken` (un token por celular) es minima. Requiere `FIREBASE_SERVICE_ACCOUNT_JSON`
+configurado (ver `.env.example`) - sin eso, el resto de la app sigue funcionando igual,
+solo que sin avisar al celular. Pasos en Firebase (una sola vez):
+  1. Crear un proyecto en [Firebase Console](https://console.firebase.google.com) (gratis, plan Spark).
+  2. Agregar una app Android con el package `com.gamonaltrasporti.app` y descargar el
+     `google-services.json` resultante en `AppGamonalTrasportiFront/android/app/`.
+  3. En Configuracion del proyecto > Cuentas de servicio > "Generar nueva clave
+     privada" - descarga un JSON. Pegar su contenido completo (en una sola linea) como
+     `FIREBASE_SERVICE_ACCOUNT_JSON` en las variables de entorno de Render.

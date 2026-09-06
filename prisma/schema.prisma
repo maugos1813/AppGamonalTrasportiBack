@@ -105,8 +105,27 @@ model User {
   records    Record[]
   mantenimientosRegistrados MantenimientoVehiculo[]
   locationPings LocationPing[]
+  pushTokens PushToken[]
 
   @@map("users")
+}
+
+// Token de dispositivo (Firebase Cloud Messaging) para mandar notificaciones push al
+// celular con la app cerrada - ver pushNotification.service.js. Se registra al iniciar
+// sesion en el APK (Capacitor) y se da de baja al cerrar sesion. Un mismo token es
+// unico (si el usuario reinstala o entra con otra cuenta desde el mismo celular, el
+// upsert lo reasigna al usuario nuevo en vez de duplicar la fila).
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("android")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("push_tokens")
 }
 
 model Documento {

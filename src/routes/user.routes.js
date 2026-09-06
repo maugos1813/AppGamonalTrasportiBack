@@ -7,7 +7,9 @@ import {
   getRouteHistoryHandler,
   list,
   listLocations,
+  registerPushTokenHandler,
   remove,
+  unregisterPushTokenHandler,
   update,
   updateMyLocationHandler,
   updateMyLocationPermissionHandler,
@@ -21,7 +23,9 @@ import { validate } from "../middlewares/validate.js";
 import {
   createUserSchema,
   idParamSchema,
+  registerPushTokenSchema,
   routeHistoryParamSchema,
+  unregisterPushTokenSchema,
   updateLocationPermissionSchema,
   updateLocationSchema,
   updateReperibilidadSchema,
@@ -48,6 +52,12 @@ router.patch(
   updateMyReperibilidadHandler
 );
 router.get("/ubicaciones", authorize("OWNER", "ADMIN"), listLocations);
+
+// Token de dispositivo para notificaciones push (ver pushNotification.service.js) -
+// cualquier usuario logueado (no solo OWNER/ADMIN), pensado para futuros avisos
+// especificos de chofer ademas de las alertas de Area C/velocidad de hoy.
+router.post("/me/push-token", validate(registerPushTokenSchema), registerPushTokenHandler);
+router.delete("/me/push-token", validate(unregisterPushTokenSchema), unregisterPushTokenHandler);
 
 // Medida de optimizacion de costos (borra historial de LocationPing viejo, ver
 // LOCATION_PING_RETENTION_DAYS en env.js) - solo OWNER, es un borrado en bloque e

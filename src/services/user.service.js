@@ -15,6 +15,7 @@ import {
   updateUserLocationPermission,
   updateUserReperibilidad,
 } from "../models/user.model.js";
+import { deletePushToken, upsertPushToken } from "../models/pushToken.model.js";
 import { env } from "../config/env.js";
 import { findActiveRecordsByDriverIds } from "../models/record.model.js";
 import { DEPOT_ORIGIN } from "../constants/depot.js";
@@ -216,6 +217,13 @@ export const updateMyReperibilidad = async (actorId, noDisponible) => {
   const updated = await updateUserReperibilidad(actorId, noDisponible);
   return toUserResponse(updated);
 };
+
+// Notificaciones push (ver pushNotification.service.js) - se registra al iniciar
+// sesion en el APK y se da de baja al cerrar sesion (usePushNotifications.js).
+export const registerPushToken = (actorId, { token, platform }) =>
+  upsertPushToken(actorId, token, platform);
+
+export const unregisterPushToken = (actorId, token) => deletePushToken(actorId, token);
 
 // Ruta real de un chofer en un dia puntual (00:00 a 00:00 del dia siguiente, hora
 // local Europe/Rome ya resuelta por el caller via el rango gte/lt). Se ajusta a la

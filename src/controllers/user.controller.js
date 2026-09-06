@@ -7,6 +7,8 @@ import {
   getUserById,
   listActiveDriverLocations,
   listUsers,
+  registerPushToken,
+  unregisterPushToken,
   updateMyLocation,
   updateMyLocationPermission,
   updateMyReperibilidad,
@@ -63,6 +65,16 @@ export const updateMyLocationPermissionHandler = asyncHandler(async (req, res) =
 export const updateMyReperibilidadHandler = asyncHandler(async (req, res) => {
   const user = await updateMyReperibilidad(req.user.id, req.body.noDisponible);
   res.status(200).json({ success: true, data: { user } });
+});
+
+export const registerPushTokenHandler = asyncHandler(async (req, res) => {
+  await registerPushToken(req.user.id, req.body);
+  res.status(200).json({ success: true });
+});
+
+export const unregisterPushTokenHandler = asyncHandler(async (req, res) => {
+  await unregisterPushToken(req.user.id, req.body.token);
+  res.status(200).json({ success: true });
 });
 
 export const listLocations = asyncHandler(async (req, res) => {

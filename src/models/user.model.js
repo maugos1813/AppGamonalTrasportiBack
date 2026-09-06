@@ -36,6 +36,17 @@ export const findAllUsers = () =>
 export const findUserById = (id) =>
   prisma.user.findUnique({ where: { id }, select: SAFE_USER_SELECT });
 
+// Destinatarios de las notificaciones push de alertas (Area C, exceso de velocidad) -
+// ver checkAreaCEntries/checkSpeedingEvents en vehicle.service.js, mismo publico que
+// ya ve esas alertas en la campanita (buildOwnerAlerts en NotificationsContext.jsx).
+export const findOwnerAndAdminUserIds = async () => {
+  const users = await prisma.user.findMany({
+    where: { cargo: { in: ["OWNER", "ADMIN"] } },
+    select: { id: true },
+  });
+  return users.map((u) => u.id);
+};
+
 // Incluye password: solo para uso interno en auth.service (login).
 export const findUserByEmailWithPassword = (correoElectronico) =>
   prisma.user.findUnique({ where: { correoElectronico: normalizeEmail(correoElectronico) } });

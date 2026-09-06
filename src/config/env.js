@@ -58,6 +58,14 @@ const envSchema = z.object({
   // "pagado": es un aviso de manejo que se descarta con la X normal de la campanita,
   // asi que se poda entero pasado este plazo, sin excepciones.
   SPEEDING_EVENT_RETENTION_DAYS: z.coerce.number().default(30),
+
+  // Notificaciones push al celular (Area C sin autorizacion, exceso de velocidad) via
+  // Firebase Cloud Messaging - opcional a proposito: sin esto la app sigue funcionando
+  // igual (la campanita web sigue mostrando las mismas alertas), solo que sin avisar
+  // tambien al celular con la app cerrada. Se pega el JSON completo de la cuenta de
+  // servicio en una sola linea (Firebase Console > Configuracion del proyecto >
+  // Cuentas de servicio > Generar nueva clave privada), ver README.
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
