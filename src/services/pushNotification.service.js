@@ -8,6 +8,7 @@ import { deletePushTokensByToken, findPushTokensForUserIds } from "../models/pus
 // sigue funcionando igual, solo que sin avisar tambien al celular con la app cerrada).
 let firebaseApp;
 let initAttempted = false;
+let initError = null;
 
 const getFirebaseApp = () => {
   if (initAttempted) return firebaseApp;
@@ -21,9 +22,21 @@ const getFirebaseApp = () => {
       "No se pudo inicializar Firebase Admin (revisar FIREBASE_SERVICE_ACCOUNT_JSON):",
       err.message
     );
+    initError = err.message;
     firebaseApp = null;
   }
   return firebaseApp;
+};
+
+// Diagnostico (ver GET /vehiculos/push-status, OWNER) - para confirmar sin tener que
+// buscar en los logs de Render si FIREBASE_SERVICE_ACCOUNT_JSON quedo bien pegado.
+export const getPushDiagnostics = () => {
+  const app = getFirebaseApp();
+  return {
+    envVarPresente: Boolean(env.FIREBASE_SERVICE_ACCOUNT_JSON),
+    inicializado: Boolean(app),
+    error: initError,
+  };
 };
 
 const isUnregisteredError = (error) =>

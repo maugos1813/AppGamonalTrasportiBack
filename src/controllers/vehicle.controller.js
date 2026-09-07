@@ -1,3 +1,4 @@
+import { getPushDiagnostics } from "../services/pushNotification.service.js";
 import { getVelocityFleetUsageStats } from "../services/velocityFleet.service.js";
 import {
   cleanupOldAreaCEntries,
@@ -47,6 +48,13 @@ export const syncVehiclesFromVelocityFleet = asyncHandler(async (req, res) => {
 // consultas antes de que impacte en la factura.
 export const getVelocityFleetUsage = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: getVelocityFleetUsageStats() });
+});
+
+// Diagnostico de notificaciones push (ver pushNotification.service.js) - para
+// confirmar si FIREBASE_SERVICE_ACCOUNT_JSON quedo bien configurado en Render sin
+// tener que buscar en los logs.
+export const getPushStatus = asyncHandler(async (req, res) => {
+  res.status(200).json({ success: true, data: getPushDiagnostics() });
 });
 
 // ETA a un destino escrito a mano desde la posicion actual de un vehiculo/chofer (ver

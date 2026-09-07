@@ -5,6 +5,7 @@ import {
   create,
   getById,
   getEtaToDestination,
+  getPushStatus,
   getVelocityFleetUsage,
   list,
   listAreaCEntries,
@@ -52,6 +53,9 @@ router.get("/live-positions", listLivePositions);
 // Monitoreo de uso/costos de Velocity Fleet: solo OWNER/ADMIN (info interna, no un
 // dato operativo que necesite ver un chofer).
 router.get("/velocity-fleet-usage", authorize("OWNER", "ADMIN"), getVelocityFleetUsage);
+// Diagnostico de notificaciones push: confirma si FIREBASE_SERVICE_ACCOUNT_JSON quedo
+// bien configurado en Render sin tener que buscar en los logs.
+router.get("/push-status", authorize("OWNER", "ADMIN"), getPushStatus);
 // Buscador de targa del Mapa: ETA a un destino escrito a mano. OWNER/ADMIN (mismo
 // publico que ve el Mapa completo).
 router.post(
