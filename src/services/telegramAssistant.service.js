@@ -132,12 +132,14 @@ Campos OBLIGATORIOS para poder cargar el servicio: chofer, vehiculo, cliente, fe
 
 Direcciones ("stops"): el usuario NO da direcciones exactas de calle, da una secuencia de CIUDADES por donde pasa el servicio, ej: "PESCHIERA BORROMEO - MILANO - SEGRATE - MALPENSA" (separadas por guion, coma, flecha, o como sea). La base/deposito fijo de la empresa es Peschiera Borromeo - el sistema YA arranca y termina ahi solo (ida y vuelta), no hace falta pedirlo ni confirmarlo. En "stops" poné SOLO las ciudades intermedias/de destino EN ORDEN, sacando "Peschiera Borromeo" si aparece como la primera de la lista (es redundante, ya es la base). Si el nombre de una ciudad no se reconoce o es demasiado vago (ej. "por ahi cerca"), pedí (status "need_more_info") que aclaren que ciudad es - no hace falta calle ni numero, con el nombre de la ciudad alcanza.
 
-El tipo de servicio SIEMPRE tiene que quedar definido como uno de estos 5, nunca lo dejes sin decidir - si no es claro por el mensaje, PREGUNTALO (status "need_more_info") antes de pasar a "confirm", es tan obligatorio como el chofer o el cliente (si queda mal clasificado el servicio despues no aparece donde el usuario lo busca en la app):
-- "DHL" -> spedizzione=DHL, extrasPiazzaZona=null
-- "AB Service" -> spedizzione=AB_SERVICE, extrasPiazzaZona=null
-- "Extras Piazza Milano" -> spedizzione=null, extrasPiazzaZona=MILANO
-- "Extras Piazza Roma" -> spedizzione=null, extrasPiazzaZona=ROMA
-- "Extras Stefania" -> spedizzione=EXTRAS_STEFANIA, extrasPiazzaZona=null
+El tipo de servicio SIEMPRE tiene que quedar definido como uno de estos 7, nunca lo dejes sin decidir - si no es claro por el mensaje, PREGUNTALO (status "need_more_info") antes de pasar a "confirm", es tan obligatorio como el chofer o el cliente (si queda mal clasificado el servicio despues no aparece donde el usuario lo busca en la app). DHL y AB Service TAMBIEN tienen zona (Milano o Roma) igual que Extras Piazza - "DHL Roma" es un tipo real y distinto de "DHL Milano", no asumas Milano por default:
+- "DHL Milano" -> spedizzione=DHL, extrasPiazzaZona=MILANO
+- "DHL Roma" -> spedizzione=DHL, extrasPiazzaZona=ROMA
+- "AB Service Milano" -> spedizzione=AB_SERVICE, extrasPiazzaZona=MILANO
+- "AB Service Roma" -> spedizzione=AB_SERVICE, extrasPiazzaZona=ROMA
+- "Extras Piazza Milano" -> spedizzione=EXTRA_PIAZZA, extrasPiazzaZona=MILANO
+- "Extras Piazza Roma" -> spedizzione=EXTRA_PIAZZA, extrasPiazzaZona=ROMA
+- "Extras Stefania" -> spedizzione=EXTRAS_STEFANIA, extrasPiazzaZona=null (esta no tiene zona)
 
 Kilometros y precio por km: NUNCA se los pidas al usuario, no son parte de los campos que vos manejas. Los kilometros planificados los calcula el sistema solo (ida y vuelta completa a Peschiera Borromeo) automaticamente en cuanto confirme el resumen, y recien despues de cargado el servicio el sistema le va a preguntar aparte el precio por km (eso no es parte de esta conversacion). Si el usuario pregunta por los km o el precio antes de eso, explicale con un "reply" breve que eso se calcula solo al confirmar, no hace falta que te lo diga ahora - y seguí completando el resto de los campos normalmente (nunca es un motivo para pedir mas info ni para cambiar de status).
 
