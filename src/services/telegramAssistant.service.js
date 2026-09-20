@@ -1,11 +1,19 @@
 import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../config/env.js";
+import { DEPOT_ORIGIN } from "../constants/depot.js";
 import { findClients } from "../models/client.model.js";
-import { deleteDraft, findDraftByChat, upsertDraft } from "../models/telegramDraft.model.js";
+import { updateRecordById } from "../models/record.model.js";
+import {
+  deleteDraft,
+  findDraftByChat,
+  setPendingPrice,
+  upsertDraft,
+} from "../models/telegramDraft.model.js";
 import { findAllUsers } from "../models/user.model.js";
 import { findVehicles } from "../models/vehicle.model.js";
 import { createRecord } from "./record.service.js";
+import { calculateRoute } from "./routing.service.js";
 import { getTimezoneOffsetMinutes } from "../utils/dateRange.js";
 import { sendTelegramMessage } from "./telegram.service.js";
 
@@ -55,7 +63,6 @@ const nowInRome = () => {
 // rechaza con 400, "Enum value ... does not match declared type") - hay que expresar
 // "string o null" con anyOf en vez del array de tipos.
 const nullableString = (extra = {}) => ({ anyOf: [{ type: "string", ...extra }, { type: "null" }] });
-const nullableArray = (items) => ({ anyOf: [{ type: "array", items }, { type: "null" }] });
 
 const UPDATE_DRAFT_TOOL = {
   name: "update_service_draft",
@@ -92,7 +99,10 @@ const UPDATE_DRAFT_TOOL = {
       aplicativo: nullableString({ enum: APLICATIVO_VALUES }),
       spedizzione: nullableString({ enum: SPEDIZZIONE_VALUES }),
       extrasPiazzaZona: nullableString({ enum: EXTRAS_PIAZZA_ZONA_VALUES }),
-      stops: nullableArray({ type: "string" }),
+      stops: {
+        anyOf: [{ type: "array", items: { type: "string" } }, { type: "null" }],
+        description: "Ciudades del servicio en orden (no direcciones de calle), al menos 1, sin incluir Peschiera Borromeo si es la primera",
+      },
     },
     required: [
       "status",
@@ -118,7 +128,9 @@ const buildSystemPrompt = ({ drivers, vehicles, clients }) => `Sos el asistente 
 
 Ahora mismo (hora local Europe/Rome): ${nowInRome()}. Usala para interpretar "hoy", "mañana", "el viernes", etc.
 
-Campos OBLIGATORIOS para poder cargar el servicio: chofer, vehiculo, cliente, fecha, hora de inicio, ETA (hora estimada de llegada/entrega - es un dato aparte de la hora de inicio, se usa para hacer seguimiento del servicio, preguntala siempre aunque coincida con la hora de inicio), descripcion, al menos una parada (direccion de destino), y el TIPO DE SERVICIO. "codigo" es OPCIONAL, se genera solo si no lo dan.
+Campos OBLIGATORIOS para poder cargar el servicio: chofer, vehiculo, cliente, fecha, hora de inicio, ETA (hora estimada de llegada/entrega - es un dato aparte de la hora de inicio, se usa para hacer seguimiento del servicio, preguntala siempre aunque coincida con la hora de inicio), descripcion, al menos una ciudad de destino, y el TIPO DE SERVICIO. "codigo" es OPCIONAL, se genera solo si no lo dan.
+
+Direcciones ("stops"): el usuario NO da direcciones exactas de calle, da una secuencia de CIUDADES por donde pasa el servicio, ej: "PESCHIERA BORROMEO - MILANO - SEGRATE - MALPENSA" (separadas por guion, coma, flecha, o como sea). La base/deposito fijo de la empresa es Peschiera Borromeo - el sistema YA arranca y termina ahi solo (ida y vuelta), no hace falta pedirlo ni confirmarlo. En "stops" poné SOLO las ciudades intermedias/de destino EN ORDEN, sacando "Peschiera Borromeo" si aparece como la primera de la lista (es redundante, ya es la base). Si el nombre de una ciudad no se reconoce o es demasiado vago (ej. "por ahi cerca"), pedí (status "need_more_info") que aclaren que ciudad es - no hace falta calle ni numero, con el nombre de la ciudad alcanza.
 
 El tipo de servicio SIEMPRE tiene que quedar definido como uno de estos 5, nunca lo dejes sin decidir - si no es claro por el mensaje, PREGUNTALO (status "need_more_info") antes de pasar a "confirm", es tan obligatorio como el chofer o el cliente (si queda mal clasificado el servicio despues no aparece donde el usuario lo busca en la app):
 - "DHL" -> spedizzione=DHL, extrasPiazzaZona=null
@@ -139,7 +151,6 @@ ${clients.map((c) => `- id=${c.id} | ${c.nombre}`).join("\n") || "(ninguno)"}
 Reglas importantes:
 - Para chofer/vehiculo/cliente: buscá una coincidencia contra las listas de arriba TOLERANDO errores de tipeo chicos (1-2 letras de diferencia, orden de nombre/apellido invertido, mayusculas/tildes, etc.) - si el nombre que escribieron se parece claramente a UNA sola persona/vehiculo de la lista, usa ESE id directamente (no hace falta preguntar por una diferencia de tipeo obvia) y despues, en el resumen de status "confirm", mostrá el nombre real tal cual esta en la lista (asi el usuario ve que se corrigio solo). Solo preguntá (status "need_more_info") cuando: (a) hay dos o mas coincidencias igual de razonables y no se puede saber cual quiso decir, o (b) no hay ninguna coincidencia razonable en absoluto.
 - Nunca canceles ni abandones el servicio por un dato que falta o no se entiende (fecha, hora, direccion, chofer, vehiculo, cliente, etc.) - siempre usa status "need_more_info" y seguí preguntando en "reply" hasta que estén completos y validos TODOS los campos obligatorios. Solo se cancela (status "cancelled") si el usuario lo pide explicitamente.
-- Direcciones: si una direccion mencionada es ambigua, incompleta, o no alcanza para ubicarla en un mapa (ej. "cerca del centro", "el de siempre"), NO la uses como esta - pedí (status "need_more_info") que la escriban mas precisa (calle y numero, ciudad).
 - aplicativo es opcional: completalo solo si el mensaje lo menciona claramente, si no dejalo en null - no es motivo para pedir mas info. spedizzione y extrasPiazzaZona en cambio se derivan del tipo de servicio (ver arriba), que SI es obligatorio.
 - Antes de cargar de verdad el servicio (status "ready"), primero tenés que pasar por status "confirm": armá un resumen breve y legible de todos los datos juntados (chofer, vehiculo, cliente, fecha/hora, direcciones, etc.) en "reply" y pedile que confirme con si/no. Recien cuando el usuario conteste que si en un mensaje siguiente, usá status "ready" (con un "reply" corto tipo "Cargando el servicio...").
 - Si el usuario dice que no, que cancele, o se arrepiente, usá status "cancelled" y confirmalo en "reply".
@@ -174,6 +185,49 @@ const callClaude = async (messages, referenceData) => {
 
 const formatMissingFieldsError = (err) => `No pude cargar el servicio: ${err.message}`;
 
+// Acepta "1.5", "1,5", "1.5 euros", "€1,5", etc. - solo el primer numero que encuentre.
+// null si no hay ningun numero valido en el texto.
+const parsePriceFromText = (text) => {
+  const match = text.replace(",", ".").match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const value = Number(match[0]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
+// Kilometros planificados = ida y vuelta completa a Peschiera Borromeo (DEPOT_ORIGIN),
+// pedido explicito: no es el trayecto real que muestra el mapa (ese es un viaje, no
+// una vuelta), es la base para el calculo de costo (kilometros x precioKm). La ruta
+// depot->paradas ya la calculo createRecord (record.ruta.distanciaKm) - solo hace
+// falta el tramo de vuelta (ultima parada -> depot) para completar el circuito.
+const calculateRoundTripKm = async (record) => {
+  const lastStop = record.stops?.at(-1);
+  if (!lastStop || record.ruta?.distanciaKm == null) return null;
+  const returnLeg = await calculateRoute([{ lat: lastStop.lat, lng: lastStop.lng }, DEPOT_ORIGIN]);
+  if (!returnLeg) return null;
+  return Math.round((record.ruta.distanciaKm + returnLeg.distanciaKm) * 10) / 10;
+};
+
+// Cuando el chat esta esperando UNICAMENTE el precio por km de un servicio ya cargado
+// (ver el final de handleIncomingTelegramMessage) - no pasa por Claude, se parsea el
+// numero directo del mensaje.
+const handlePendingPrice = async (chatId, recordId, text) => {
+  const precioKm = parsePriceFromText(text);
+  if (precioKm == null) {
+    await sendTelegramMessage(chatId, "No entendi el precio - mandame solo el numero, ej: 1.50");
+    return;
+  }
+
+  const updated = await updateRecordById(recordId, { precioKm });
+  await deleteDraft(chatId);
+
+  const total = updated.kilometros != null ? (updated.kilometros * precioKm).toFixed(2) : null;
+  await sendTelegramMessage(
+    chatId,
+    `Listo, precio por km: ${precioKm}.` +
+      (total ? ` Total estimado (${updated.kilometros} km x ${precioKm}): €${total}.` : "")
+  );
+};
+
 // Punto de entrada del webhook (ver telegram.controller.js) - procesa un mensaje
 // entrante de texto plano del chat autorizado, mantiene el hilo de la conversacion en
 // TelegramDraft, y crea el Record real cuando el usuario confirma.
@@ -183,14 +237,19 @@ export const handleIncomingTelegramMessage = async (chatId, text) => {
     return;
   }
 
-  const [drivers, vehicles, clients, draft] = await Promise.all([
+  const pendingDraft = await findDraftByChat(chatId);
+  if (pendingDraft?.pendingPriceRecordId) {
+    await handlePendingPrice(chatId, pendingDraft.pendingPriceRecordId, text);
+    return;
+  }
+
+  const [drivers, vehicles, clients] = await Promise.all([
     findAllUsers().then((users) => users.filter((u) => u.cargo === "CHOFER" && u.estado === "ACTIVO")),
     findVehicles(),
     findClients(),
-    findDraftByChat(chatId),
   ]);
 
-  const history = draft?.messages ?? [];
+  const history = pendingDraft?.messages ?? [];
   const messages = [...history, { role: "user", content: text }];
 
   let draftUpdate;
@@ -242,10 +301,20 @@ export const handleIncomingTelegramMessage = async (chatId, text) => {
       { actor: null }
     );
 
-    await deleteDraft(chatId);
+    const kilometros = await calculateRoundTripKm(record);
+    if (kilometros != null) {
+      await updateRecordById(record.id, { kilometros });
+    }
+
+    // No se borra el draft: queda esperando el precio por km como proximo mensaje
+    // (ver handlePendingPrice), no pasa por Claude.
+    await setPendingPrice(chatId, record.id);
     await sendTelegramMessage(
       chatId,
-      `Servicio cargado (codigo ${record.codigo}). ${draftUpdate.reply ?? ""}`.trim()
+      `Servicio cargado (codigo ${record.codigo}).` +
+        (kilometros != null
+          ? ` Kilometros planificados (ida y vuelta a Peschiera Borromeo): ${kilometros} km. ¿Cual es el precio por km?`
+          : " No pude calcular los kilometros planificados solo, cargalo a mano despues en la app.")
     );
   } catch (err) {
     console.error("No se pudo crear el Record desde Telegram:", err.message);

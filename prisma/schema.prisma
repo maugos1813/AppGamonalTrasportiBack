@@ -482,6 +482,10 @@ model TelegramDraft {
   // completo (paradas ya mencionadas, correcciones, etc.), no hace falta parsear "que
   // se sabe hasta ahora" a mano.
   messages  Json
+  // Si esta seteado, el servicio ya se creo y esta esperando UNICAMENTE el precio por
+  // km como proximo mensaje (no pasa por Claude, se parsea como numero directo) - ver
+  // handleIncomingTelegramMessage. Null en el resto de los casos (conversacion normal).
+  pendingPriceRecordId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
