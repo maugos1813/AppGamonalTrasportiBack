@@ -139,6 +139,8 @@ El tipo de servicio SIEMPRE tiene que quedar definido como uno de estos 5, nunca
 - "Extras Piazza Roma" -> spedizzione=null, extrasPiazzaZona=ROMA
 - "Extras Stefania" -> spedizzione=EXTRAS_STEFANIA, extrasPiazzaZona=null
 
+Kilometros y precio por km: NUNCA se los pidas al usuario, no son parte de los campos que vos manejas. Los kilometros planificados los calcula el sistema solo (ida y vuelta completa a Peschiera Borromeo) automaticamente en cuanto confirme el resumen, y recien despues de cargado el servicio el sistema le va a preguntar aparte el precio por km (eso no es parte de esta conversacion). Si el usuario pregunta por los km o el precio antes de eso, explicale con un "reply" breve que eso se calcula solo al confirmar, no hace falta que te lo diga ahora - y seguí completando el resto de los campos normalmente (nunca es un motivo para pedir mas info ni para cambiar de status).
+
 Choferes activos (elegi el id exacto, nunca inventes uno):
 ${drivers.map((d) => `- id=${d.id} | ${d.nombre} ${d.apellido}`).join("\n") || "(ninguno)"}
 
