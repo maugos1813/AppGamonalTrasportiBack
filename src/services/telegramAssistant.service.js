@@ -79,8 +79,13 @@ const UPDATE_DRAFT_TOOL = {
       driverId: nullableString({ description: "id exacto de la lista de choferes, o null" }),
       vehicleId: nullableString({ description: "id exacto de la lista de vehiculos, o null" }),
       clientId: nullableString({ description: "id exacto de la lista de clientes, o null" }),
-      fecha: nullableString({ description: "YYYY-MM-DD, hora local Europe/Rome" }),
-      hora: nullableString({ description: "HH:mm 24hs, hora local Europe/Rome" }),
+      fecha: nullableString({ description: "YYYY-MM-DD del servicio, hora local Europe/Rome" }),
+      hora: nullableString({ description: "HH:mm 24hs de inicio del servicio, hora local Europe/Rome" }),
+      etaHora: nullableString({
+        description:
+          "HH:mm 24hs de la ETA (hora estimada de llegada/entrega) para seguimiento, hora local " +
+          "Europe/Rome, mismo dia que 'fecha'. Es un dato DISTINTO de 'hora' aunque a veces coincidan.",
+      }),
       descripcion: nullableString(),
       codigo: nullableString({ description: "Solo si el usuario menciona uno explicito" }),
       ciudad: nullableString(),
@@ -97,6 +102,7 @@ const UPDATE_DRAFT_TOOL = {
       "clientId",
       "fecha",
       "hora",
+      "etaHora",
       "descripcion",
       "codigo",
       "ciudad",
@@ -112,7 +118,14 @@ const buildSystemPrompt = ({ drivers, vehicles, clients }) => `Sos el asistente 
 
 Ahora mismo (hora local Europe/Rome): ${nowInRome()}. Usala para interpretar "hoy", "mañana", "el viernes", etc.
 
-Campos OBLIGATORIOS para poder cargar el servicio: chofer, vehiculo, cliente, fecha, hora, descripcion, y al menos una parada (direccion de destino). "codigo" es OPCIONAL, se genera solo si no lo dan.
+Campos OBLIGATORIOS para poder cargar el servicio: chofer, vehiculo, cliente, fecha, hora de inicio, ETA (hora estimada de llegada/entrega - es un dato aparte de la hora de inicio, se usa para hacer seguimiento del servicio, preguntala siempre aunque coincida con la hora de inicio), descripcion, al menos una parada (direccion de destino), y el TIPO DE SERVICIO. "codigo" es OPCIONAL, se genera solo si no lo dan.
+
+El tipo de servicio SIEMPRE tiene que quedar definido como uno de estos 5, nunca lo dejes sin decidir - si no es claro por el mensaje, PREGUNTALO (status "need_more_info") antes de pasar a "confirm", es tan obligatorio como el chofer o el cliente (si queda mal clasificado el servicio despues no aparece donde el usuario lo busca en la app):
+- "DHL" -> spedizzione=DHL, extrasPiazzaZona=null
+- "AB Service" -> spedizzione=AB_SERVICE, extrasPiazzaZona=null
+- "Extras Piazza Milano" -> spedizzione=null, extrasPiazzaZona=MILANO
+- "Extras Piazza Roma" -> spedizzione=null, extrasPiazzaZona=ROMA
+- "Extras Stefania" -> spedizzione=EXTRAS_STEFANIA, extrasPiazzaZona=null
 
 Choferes activos (elegi el id exacto, nunca inventes uno):
 ${drivers.map((d) => `- id=${d.id} | ${d.nombre} ${d.apellido}`).join("\n") || "(ninguno)"}
@@ -127,7 +140,7 @@ Reglas importantes:
 - Para chofer/vehiculo/cliente: buscá una coincidencia contra las listas de arriba TOLERANDO errores de tipeo chicos (1-2 letras de diferencia, orden de nombre/apellido invertido, mayusculas/tildes, etc.) - si el nombre que escribieron se parece claramente a UNA sola persona/vehiculo de la lista, usa ESE id directamente (no hace falta preguntar por una diferencia de tipeo obvia) y despues, en el resumen de status "confirm", mostrá el nombre real tal cual esta en la lista (asi el usuario ve que se corrigio solo). Solo preguntá (status "need_more_info") cuando: (a) hay dos o mas coincidencias igual de razonables y no se puede saber cual quiso decir, o (b) no hay ninguna coincidencia razonable en absoluto.
 - Nunca canceles ni abandones el servicio por un dato que falta o no se entiende (fecha, hora, direccion, chofer, vehiculo, cliente, etc.) - siempre usa status "need_more_info" y seguí preguntando en "reply" hasta que estén completos y validos TODOS los campos obligatorios. Solo se cancela (status "cancelled") si el usuario lo pide explicitamente.
 - Direcciones: si una direccion mencionada es ambigua, incompleta, o no alcanza para ubicarla en un mapa (ej. "cerca del centro", "el de siempre"), NO la uses como esta - pedí (status "need_more_info") que la escriban mas precisa (calle y numero, ciudad).
-- aplicativo/spedizzione/extrasPiazzaZona son opcionales: completalos solo si el mensaje los menciona claramente (valores validos en el schema de la tool), si no dejalos en null - nunca son un motivo para pedir mas info.
+- aplicativo es opcional: completalo solo si el mensaje lo menciona claramente, si no dejalo en null - no es motivo para pedir mas info. spedizzione y extrasPiazzaZona en cambio se derivan del tipo de servicio (ver arriba), que SI es obligatorio.
 - Antes de cargar de verdad el servicio (status "ready"), primero tenés que pasar por status "confirm": armá un resumen breve y legible de todos los datos juntados (chofer, vehiculo, cliente, fecha/hora, direcciones, etc.) en "reply" y pedile que confirme con si/no. Recien cuando el usuario conteste que si en un mensaje siguiente, usá status "ready" (con un "reply" corto tipo "Cargando el servicio...").
 - Si el usuario dice que no, que cancele, o se arrepiente, usá status "cancelled" y confirmalo en "reply".
 - Nunca uses "ready" como primera respuesta de una conversacion nueva, siempre tiene que haber pasado por "confirm" antes.
@@ -207,15 +220,17 @@ export const handleIncomingTelegramMessage = async (chatId, text) => {
   try {
     const [year, month, day] = draftUpdate.fecha.split("-").map(Number);
     const [hour, minute] = draftUpdate.hora.split(":").map(Number);
-    const when = romeLocalToDate(year, month, day, hour, minute);
+    const [etaHour, etaMinute] = draftUpdate.etaHora.split(":").map(Number);
+    const fechaServicio = romeLocalToDate(year, month, day, hour, minute);
+    const eta = romeLocalToDate(year, month, day, etaHour, etaMinute);
 
     const record = await createRecord(
       {
         driverId: draftUpdate.driverId,
         vehicleId: draftUpdate.vehicleId,
         clientId: draftUpdate.clientId,
-        fechaServicio: when,
-        eta: when,
+        fechaServicio,
+        eta,
         descripcion: draftUpdate.descripcion,
         codigo: draftUpdate.codigo?.trim() || `TG-${randomUUID().slice(0, 8).toUpperCase()}`,
         ciudad: draftUpdate.ciudad ?? undefined,
