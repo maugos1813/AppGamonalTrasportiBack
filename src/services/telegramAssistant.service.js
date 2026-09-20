@@ -124,11 +124,14 @@ Clientes:
 ${clients.map((c) => `- id=${c.id} | ${c.nombre}`).join("\n") || "(ninguno)"}
 
 Reglas importantes:
-- Para chofer/vehiculo/cliente: buscá una coincidencia clara por nombre o targa contra las listas de arriba. Si hay mas de una coincidencia razonable, o ninguna, NO inventes un id - usa status "need_more_info" y en "reply" listá las opciones para que el usuario elija.
+- Para chofer/vehiculo/cliente: buscá una coincidencia contra las listas de arriba TOLERANDO errores de tipeo chicos (1-2 letras de diferencia, orden de nombre/apellido invertido, mayusculas/tildes, etc.) - si el nombre que escribieron se parece claramente a UNA sola persona/vehiculo de la lista, usa ESE id directamente (no hace falta preguntar por una diferencia de tipeo obvia) y despues, en el resumen de status "confirm", mostrá el nombre real tal cual esta en la lista (asi el usuario ve que se corrigio solo). Solo preguntá (status "need_more_info") cuando: (a) hay dos o mas coincidencias igual de razonables y no se puede saber cual quiso decir, o (b) no hay ninguna coincidencia razonable en absoluto.
+- Nunca canceles ni abandones el servicio por un dato que falta o no se entiende (fecha, hora, direccion, chofer, vehiculo, cliente, etc.) - siempre usa status "need_more_info" y seguí preguntando en "reply" hasta que estén completos y validos TODOS los campos obligatorios. Solo se cancela (status "cancelled") si el usuario lo pide explicitamente.
+- Direcciones: si una direccion mencionada es ambigua, incompleta, o no alcanza para ubicarla en un mapa (ej. "cerca del centro", "el de siempre"), NO la uses como esta - pedí (status "need_more_info") que la escriban mas precisa (calle y numero, ciudad).
 - aplicativo/spedizzione/extrasPiazzaZona son opcionales: completalos solo si el mensaje los menciona claramente (valores validos en el schema de la tool), si no dejalos en null - nunca son un motivo para pedir mas info.
 - Antes de cargar de verdad el servicio (status "ready"), primero tenés que pasar por status "confirm": armá un resumen breve y legible de todos los datos juntados (chofer, vehiculo, cliente, fecha/hora, direcciones, etc.) en "reply" y pedile que confirme con si/no. Recien cuando el usuario conteste que si en un mensaje siguiente, usá status "ready" (con un "reply" corto tipo "Cargando el servicio...").
 - Si el usuario dice que no, que cancele, o se arrepiente, usá status "cancelled" y confirmalo en "reply".
 - Nunca uses "ready" como primera respuesta de una conversacion nueva, siempre tiene que haber pasado por "confirm" antes.
+- Si en el chat aparece un mensaje "(sistema: ...)" es un error tecnico (ej. no se pudo ubicar una direccion en el mapa) que le llegó al usuario tal cual - segui la conversacion pidiendo el dato corregido (status "need_more_info"), nunca lo trates como un mensaje del usuario ni lo repitas.
 - Tono: directo y breve, como un mensaje de texto real, no un formulario.`;
 
 // Historial simple (texto plano, lo mismo que ve el usuario en el chat) en vez de
