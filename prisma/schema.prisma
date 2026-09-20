@@ -467,3 +467,23 @@ model LocationPing {
   @@index([driverId, recordedAt])
   @@map("location_pings")
 }
+
+// Conversacion en curso con el bot de Telegram (ver telegramAssistant.service.js) -
+// carga de servicios por chat en lenguaje natural. Se guarda en DB (no en memoria del
+// proceso) porque Render free se duerme/reinicia entre mensajes - sin esto se perderia
+// el hilo de la conversacion a mitad de carga. Una fila por chat (normalmente uno
+// solo, el grupo privado configurado en TELEGRAM_ALLOWED_CHAT_ID); se borra sola al
+// completarse o cancelarse el servicio, asi el proximo mensaje arranca de cero.
+model TelegramDraft {
+  id        String   @id @default(uuid())
+  chatId    String   @unique
+  // Historial de la conversacion para este borrador: [{role: "user"|"assistant", content}]
+  // - se le reenvia entero a Claude en cada mensaje nuevo para que tenga el contexto
+  // completo (paradas ya mencionadas, correcciones, etc.), no hace falta parsear "que
+  // se sabe hasta ahora" a mano.
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("telegram_drafts")
+}

@@ -441,3 +441,30 @@ solo que sin avisar al celular. Pasos en Firebase (una sola vez):
   3. En Configuracion del proyecto > Cuentas de servicio > "Generar nueva clave
      privada" - descarga un JSON. Pegar su contenido completo (en una sola linea) como
      `FIREBASE_SERVICE_ACCOUNT_JSON` en las variables de entorno de Render.
+
+**11. Carga de servicios por chat de Telegram, con Claude interpretando el mensaje.**
+Un bot privado de Telegram (solo el chat en `TELEGRAM_ALLOWED_CHAT_ID` le puede escribir
+- cualquier otro mensaje se ignora en silencio) recibe el servicio en lenguaje natural,
+usa la API de Claude (`telegramAssistant.service.js`) para matchear chofer/vehiculo/
+cliente contra lo que ya existe en la app, repregunta lo que falte, pide confirmacion
+con un resumen antes de cargar nada, y recien ahi crea el `Record` real (mismo
+`createRecord` que usa el formulario del front - mismo calculo de ruta, misma escritura
+a AppSheet). El hilo de la conversacion se guarda en `TelegramDraft` (una fila por chat,
+se borra sola al confirmar o cancelar) porque Render free se puede dormir entre
+mensajes. Costo: la API de Anthropic (cuenta separada de cualquier suscripcion de
+Claude, ver `.env.example`) cobra por uso - centavos de dolar por servicio cargado a
+este volumen. Requiere `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_ID`,
+`TELEGRAM_WEBHOOK_SECRET` y `ANTHROPIC_API_KEY` configurados - sin eso, el webhook
+simplemente no hace nada. Pasos (una sola vez):
+  1. Hablar con `@BotFather` en Telegram: `/newbot` (token), despues `/setprivacy` >
+     elegir el bot > **Disable** (si no, el bot solo ve comandos/menciones, no mensajes
+     normales).
+  2. Crear un grupo privado con el bot adentro, mandar un mensaje cualquiera, y pegarle
+     a `https://api.telegram.org/bot<token>/getUpdates` para sacar el `chat_id`
+     (numero negativo) - ese va en `TELEGRAM_ALLOWED_CHAT_ID`.
+  3. Generar una API key en [console.anthropic.com](https://console.anthropic.com) >
+     API Keys > `ANTHROPIC_API_KEY`.
+  4. Generar un secreto random para `TELEGRAM_WEBHOOK_SECRET` (ej.
+     `python3 -c "import secrets; print(secrets.token_hex(24))"`).
+  5. Una vez deployado con esas 4 variables, registrar el webhook:
+     `curl "https://api.telegram.org/bot<token>/setWebhook" -d "url=https://<tu-backend>/api/telegram/webhook" -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"`.

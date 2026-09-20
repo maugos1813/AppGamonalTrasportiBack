@@ -66,6 +66,22 @@ const envSchema = z.object({
   // servicio en una sola linea (Firebase Console > Configuracion del proyecto >
   // Cuentas de servicio > Generar nueva clave privada), ver README.
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+
+  // Carga de servicios por chat (ver telegramAssistant.service.js) - bot privado de
+  // Telegram + Claude para interpretar el mensaje en lenguaje natural. Los 3 son
+  // opcionales a proposito: sin ellos, ese endpoint solo ignora los webhooks entrantes,
+  // el resto de la app sigue igual.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  // chat_id del grupo privado autorizado (ver /getUpdates) - cualquier otro chat que le
+  // escriba al bot se ignora, ni siquiera se le contesta.
+  TELEGRAM_ALLOWED_CHAT_ID: z.string().optional(),
+  // Telegram manda este header en cada request al webhook (configurado al registrar la
+  // URL con /setWebhook) - sin que coincida, se rechaza: evita que cualquiera que
+  // adivine la URL del endpoint pueda mandar mensajes falsos.
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  // Cuenta de API separada de Anthropic (console.anthropic.com), no la suscripcion de
+  // Claude - factura por uso, aparte.
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

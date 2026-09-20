@@ -22,8 +22,10 @@ export const buildDateRange = (year, month, day) => {
 };
 
 // Cuantos minutos hay que sumarle a un instante UTC para obtener su hora de reloj en
-// timeZone (offset real de esa fecha, ya resuelto el DST).
-const getTimezoneOffsetMinutes = (date, timeZone) => {
+// timeZone (offset real de esa fecha, ya resuelto el DST). Exportada ademas de usarse
+// aca abajo: telegramAssistant.service.js la reusa para convertir la fecha/hora que
+// dice el chat (hora local Europe/Rome) a un Date real.
+export const getTimezoneOffsetMinutes = (date, timeZone) => {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hour12: false,
